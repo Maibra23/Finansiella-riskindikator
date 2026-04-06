@@ -21,7 +21,7 @@ KOLADA_API_BASE = "https://api.kolada.se/v2/"
 
 SCB_API_PATHS = {
     # Variable 1: Long-term debt (balance sheet)
-    "balance_sheet": "OE/OE0107/OE0107G/BalansKnN",
+    "balance_sheet": "OE/OE0107/OE0107G/BalansKn",
 
     # Variable 3 & 4: Population by age (for dependency ratio and population growth)
     "population": "BE/BE0101/BE0101A/BefolkningNy",
@@ -33,7 +33,7 @@ SCB_API_PATHS = {
     "income_statement": "OE/OE0107/OE0107G/ResultKn",
 
     # Supplementary: Municipal tax rate
-    "tax_rate": "OE/OE0101/Komskatter",
+    "tax_rate": "OE/OE0101/Kommunalskatter2000",
 }
 
 # Full API URLs for convenience
