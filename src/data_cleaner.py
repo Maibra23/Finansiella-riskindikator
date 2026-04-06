@@ -145,22 +145,73 @@ class DataCleaner:
 
         return pop_total
 
-    def compute_dependency_ratio(self, df: pd.DataFrame) -> pd.DataFrame:
+    def compute_dependency_ratio(
+        self,
+        population_df: pd.DataFrame,
+        working_age_df: Optional[pd.DataFrame] = None
+    ) -> pd.DataFrame:
         """
-        Compute dependency ratio from population by age data.
+        Compute dependency ratio from working-age population percentage.
 
-        Dependency ratio = (population 0-19 + population 65+) / population 20-64
+        If working_age_df is provided (from Kolada), use it directly.
+        Otherwise, fall back to computing from SCB population data.
+
+        Dependency ratio = (100 - working_age_pct) / working_age_pct * 100
 
         Args:
-            df: Population by age DataFrame from SCB
+            population_df: Population by age DataFrame from SCB (fallback)
+            working_age_df: Working-age population percentage from Kolada (preferred)
 
         Returns:
             DataFrame with columns: municipality_code, municipality_name, year, dependency_ratio
         """
         logger.info("Computing dependency ratio...")
 
-        # Define age group mappings
-        # SCB age groups vary, so we need to handle different formats
+        # Prefer Kolada working-age data if available
+        if working_age_df is not None and not working_age_df.empty:
+            logger.info("Using Kolada working-age percentage data")
+
+            df = working_age_df.copy()
+
+            # Compute dependency ratio from working-age percentage
+            # working_age_pct is the percentage of population aged 20-64
+            # dependency_ratio = (non-working / working) * 100
+            df["dependency_ratio"] = (100 - df["working_age_pct"]) / df["working_age_pct"] * 100
+
+            # Handle edge cases
+            df["dependency_ratio"] = df["dependency_ratio"].replace([np.inf, -np.inf], np.nan)
+
+            # Ensure municipality_name exists
+            if "municipality_name" not in df.columns or df["municipality_name"].isna().all():
+                df["municipality_name"] = df["municipality_code"].map(MUNICIPALITIES)
+
+            # Select final columns
+            result = df[[
+                "municipality_code", "municipality_name", "year", "dependency_ratio"
+            ]].copy()
+
+            # Filter to analysis period
+            result = result[(result["year"] >= START_YEAR) & (result["year"] <= END_YEAR)]
+
+            logger.info(f"Computed dependency ratio: {len(result)} rows, "
+                       f"mean ratio: {result['dependency_ratio'].mean():.3f}")
+
+            return result
+
+        # Fallback: compute from SCB population data
+        logger.warning("Working-age data not available, falling back to SCB population data")
+        return self._compute_dependency_ratio_from_scb(population_df)
+
+    def _compute_dependency_ratio_from_scb(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute dependency ratio from SCB population by age data (fallback method).
+
+        Args:
+            df: Population by age DataFrame from SCB
+
+        Returns:
+            DataFrame with dependency ratio
+        """
         df = df.copy()
 
         # Create age group categories based on the age column content
@@ -171,9 +222,7 @@ class DataCleaner:
 
             age_str = str(age_str).lower()
 
-            # Try to extract numeric age range
-            # Common formats: "0-4 år", "5-9 år", "20-24 år", "65-69 år", "85+ år", "totalt"
-            if "totalt" in age_str or "total" in age_str:
+            if "totalt" in age_str or "total" in age_str or age_str == "tot":
                 return "total"
 
             # Extract numbers from string
@@ -183,15 +232,14 @@ class DataCleaner:
             if not numbers:
                 return "unknown"
 
-            # Get the lower bound of the age range
             lower_age = int(numbers[0])
 
             if lower_age < 20:
-                return "young"  # 0-19
+                return "young"
             elif lower_age < 65:
-                return "working"  # 20-64
+                return "working"
             else:
-                return "old"  # 65+
+                return "old"
 
         df["age_category"] = df["age"].apply(categorize_age)
 
@@ -201,6 +249,12 @@ class DataCleaner:
             as_index=False
         )["value"].sum()
 
+        if pop_by_category.empty:
+            logger.warning("No age-specific data found in SCB population data")
+            return pd.DataFrame(columns=[
+                "municipality_code", "municipality_name", "year", "dependency_ratio"
+            ])
+
         # Pivot to get columns for each category
         pop_pivot = pop_by_category.pivot_table(
             index=["municipality_code", "municipality_name", "year"],
@@ -209,31 +263,25 @@ class DataCleaner:
             fill_value=0
         ).reset_index()
 
-        # Ensure all columns exist
         for col in ["young", "working", "old"]:
             if col not in pop_pivot.columns:
                 pop_pivot[col] = 0
 
-        # Compute dependency ratio
         pop_pivot["dependency_ratio"] = (
             (pop_pivot["young"] + pop_pivot["old"]) / pop_pivot["working"]
         )
 
-        # Handle division by zero
         pop_pivot["dependency_ratio"] = pop_pivot["dependency_ratio"].replace(
             [np.inf, -np.inf], np.nan
         )
 
-        # Select final columns
         result = pop_pivot[[
             "municipality_code", "municipality_name", "year", "dependency_ratio"
         ]].copy()
 
-        # Filter to analysis period
         result = result[result["year"] >= START_YEAR]
 
-        logger.info(f"Computed dependency ratio: {len(result)} rows, "
-                   f"mean ratio: {result['dependency_ratio'].mean():.3f}")
+        logger.info(f"Computed dependency ratio (SCB fallback): {len(result)} rows")
 
         return result
 
@@ -626,8 +674,12 @@ class DataCleaner:
         # Clean unemployment
         unemployment_df = self.clean_unemployment(raw_data["unemployment"])
 
-        # Compute dependency ratio
-        dependency_df = self.compute_dependency_ratio(raw_data["population"])
+        # Compute dependency ratio (prefer Kolada working_age data if available)
+        working_age_df = raw_data.get("working_age")
+        dependency_df = self.compute_dependency_ratio(
+            raw_data["population"],
+            working_age_df
+        )
 
         # Compute population growth
         population_df = self.compute_population_growth(raw_data["population"])

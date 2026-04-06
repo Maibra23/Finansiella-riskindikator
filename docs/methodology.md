@@ -326,18 +326,64 @@ Every municipality is checked for complete data across all 5 core variables for 
 
 ---
 
-## 7. Reproducibility
+## 7. Known Data Issues and Limitations (2024 Update)
 
-### 7.1 Data
+### 7.1 Kolada API Data Availability Issues
+
+During implementation, significant data coverage limitations were discovered in the Kolada API:
+
+| KPI ID | Description | Available Years | Issue |
+|--------|-------------|-----------------|-------|
+| N00708 | Unemployment (Swedish-born 20-64) | 2013-2014 only | Only 2 years of data |
+| N03935 | Youth unemployment (18-24) | 2010-2011, 2018-2019 | Non-continuous coverage |
+| N03936 | Youth unemployment rate (18-24) | 2010-2011 only | Historical only |
+| N01961 | Working-age population % | 2010-2011 only | Historical only |
+| N00945 | *Discontinued* | N/A | Previously used for unemployment, now renamed to unrelated KPI |
+
+**Impact on KRI:**
+- Unemployment data: Coverage limited to ~4 years instead of 15 years (2010-2024)
+- Dependency ratio: Can only be computed from Kolada for 2010-2011; later years require SCB age-specific data or interpolation
+
+**Mitigation strategies employed:**
+1. Use available Kolada data where coverage exists
+2. Apply interpolation for years with missing data (documented as data quality flag)
+3. Fall back to SCB population totals for years where dependency ratio cannot be computed
+4. Flag affected municipalities in the dashboard
+
+### 7.2 SCB API Notes
+
+The following SCB API issues were resolved during implementation:
+- Table path `BalansKnN` changed to `BalansKn` (legacy path deprecated)
+- Table path `Komskatter` changed to `Kommunalskatter2000`
+- Region filter `vs:RegionKommun07` not supported; replaced with `filter: "all", values: ["*"]`
+- Income statement post code 070 (Verksamhetens nettokostnad) changed to 120 (Årets resultat)
+
+### 7.3 Data Quality Summary
+
+| Variable | Data Completeness | Notes |
+|----------|-------------------|-------|
+| Debt per capita | 100% (2010-2024) | Complete from SCB |
+| Population growth | 100% (2010-2024) | Complete from SCB |
+| Tax base relative | 100% (2010-2024) | Complete from SCB |
+| Unemployment | ~25% (selected years) | Kolada coverage limited |
+| Dependency ratio | ~15% (2010-2011) | Kolada working-age data limited |
+
+**Recommendation:** For years without complete Kolada data, the KRI should be computed using only the SCB-based variables (debt, population growth, tax base) with adjusted weights, or the missing variables should be interpolated and clearly flagged in the UI.
+
+---
+
+## 8. Reproducibility
+
+### 8.1 Data
 - All raw data saved in `data/raw/` with timestamps
 - API calls logged with exact URL and timestamp
 - Cached data is versioned
 
-### 7.2 Code
+### 8.2 Code
 - All transformations documented in Python scripts
 - requirements.txt freezes all package versions
 - README contains step by step instructions to reproduce
 
-### 7.3 Results
+### 8.3 Results
 - Final KRI scores exported as CSV
 - PDF report generated automatically from the same data pipeline

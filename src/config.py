@@ -53,10 +53,22 @@ KOLADA_ENDPOINTS = {
 }
 
 # Known Kolada KPI IDs for unemployment
+# NOTE: Kolada has limited historical data. Different KPIs cover different years.
+# N03935: Youth unemployment 18-24 (2010-2011, 2018-2019) - realistic values
+# N00708: Unemployment Swedish-born 20-64 (2013-2014 only)
 KOLADA_UNEMPLOYMENT_KPIS = [
-    "N00914",  # Openly unemployed 16-64 years, share (%)
-    "N00945",  # Total unemployment 16-64 years, share (%)
+    "N03935",  # Arbetslösa av befolkningen, 18-24 år, andel (%) - best coverage
+    "N00708",  # Arbetslöshet någon gång under året, inrikes födda 20-64 år
 ]
+
+# Kolada KPI for working-age population (used to compute dependency ratio)
+# N01961: Invånare 20-64 år, andel (%) - limited to 2010-2011
+KOLADA_WORKING_AGE_KPI = "N01961"
+
+# DATA QUALITY NOTE: Kolada API has severe historical data limitations.
+# Most KPIs only have 2-4 years of data. The KRI index will have significant
+# gaps in unemployment and dependency ratio. These should be documented
+# and handled via interpolation where reasonable.
 
 # =============================================================================
 # TIME PERIOD
