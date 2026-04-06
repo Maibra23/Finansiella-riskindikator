@@ -22,6 +22,7 @@ from src.config import (
     SCB_API_URLS,
     KOLADA_API_BASE,
     KOLADA_UNEMPLOYMENT_KPIS,
+    KOLADA_WORKING_AGE_KPI,
     YEARS,
     YEARS_STR,
     POPULATION_YEARS_STR,
@@ -1132,6 +1133,52 @@ class KoladaFetcher:
 
         return df
 
+    def fetch_working_age_population(self) -> pd.DataFrame:
+        """
+        Fetch working-age population percentage (20-64 years) for all municipalities.
+
+        This is used to compute the dependency ratio:
+        dependency_ratio = (100 - working_age_pct) / working_age_pct * 100
+
+        Returns:
+            DataFrame with columns: municipality_code, municipality_name, year, working_age_pct
+        """
+        table_name = "working_age"
+
+        # Check cache first
+        cached = self._load_from_cache(table_name)
+        if cached is not None:
+            return cached
+
+        logger.info(f"Fetching working-age population data using KPI {KOLADA_WORKING_AGE_KPI}")
+
+        try:
+            df = self.fetch_kpi_data(KOLADA_WORKING_AGE_KPI)
+
+            if df.empty or df["value"].notna().sum() == 0:
+                raise KoladaAPIError(f"No data found for working-age KPI {KOLADA_WORKING_AGE_KPI}")
+
+            # Rename value column
+            df = df.rename(columns={"value": "working_age_pct"})
+
+            # Ensure correct types
+            df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+            df["working_age_pct"] = pd.to_numeric(df["working_age_pct"], errors="coerce")
+
+            # Filter to our year range
+            df = df[(df["year"] >= START_YEAR) & (df["year"] <= END_YEAR)]
+
+            # Save to cache
+            self._save_to_cache(df, table_name)
+
+            time.sleep(REQUEST_DELAY)
+
+            return df
+
+        except KoladaAPIError as e:
+            logger.error(f"Failed to fetch working-age population data: {e}")
+            raise
+
     def clear_cache(self) -> None:
         """Clear all Kolada cached data files."""
         for cache_file in self.cache_dir.glob("kolada_*.parquet"):
@@ -1180,7 +1227,7 @@ def fetch_all_data(use_cache: bool = True) -> Dict[str, pd.DataFrame]:
     Returns:
         Dictionary with all DataFrames needed for KRI computation:
         - balance_sheet, population, tax_base, income_statement, tax_rate (from SCB)
-        - unemployment (from Kolada)
+        - unemployment, working_age (from Kolada)
     """
     logger.info("Fetching all data from SCB and Kolada...")
 
@@ -1188,13 +1235,20 @@ def fetch_all_data(use_cache: bool = True) -> Dict[str, pd.DataFrame]:
     scb_fetcher = SCBFetcher(use_cache=use_cache)
     results = scb_fetcher.fetch_all()
 
-    # Fetch Kolada unemployment data
+    # Fetch Kolada data
     kolada_fetcher = KoladaFetcher(use_cache=use_cache)
-    results["unemployment"] = kolada_fetcher.fetch_unemployment()
 
-    logger.info("Successfully fetched all data")
+    # Fetch unemployment data
+    results["unemployment"] = kolada_fetcher.fetch_unemployment()
     logger.info(f"  unemployment: {len(results['unemployment'])} rows, "
                 f"{results['unemployment']['municipality_code'].nunique()} municipalities")
+
+    # Fetch working-age population for dependency ratio
+    results["working_age"] = kolada_fetcher.fetch_working_age_population()
+    logger.info(f"  working_age: {len(results['working_age'])} rows, "
+                f"{results['working_age']['municipality_code'].nunique()} municipalities")
+
+    logger.info("Successfully fetched all data")
 
     return results
 
