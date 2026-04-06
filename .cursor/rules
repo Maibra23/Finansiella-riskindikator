@@ -1,0 +1,62 @@
+# Cursor Rules for KRI Project
+
+## Language Rules
+
+### Code Layer (English)
+- All variable names in English: `debt_per_capita`, `unemployment_rate`
+- All function names in English: `fetch_balance_sheet()`, `compute_kri()`
+- All file names in English: `data_fetcher.py`, `index_builder.py`
+- All comments and docstrings in English
+- All git commit messages in English
+
+### User-Facing Layer (Swedish Only)
+- All Streamlit page titles in Swedish
+- All chart axis labels in Swedish
+- All chart legends in Swedish
+- All tooltips in Swedish
+- All table headers in Swedish
+- All KPI card titles in Swedish
+- All sidebar labels and filters in Swedish
+- All button labels in Swedish
+- All error messages shown to users in Swedish
+
+## Design Rules
+
+### Colors (use from src/config.py COLORS dict)
+- Primary: #1B2A4A (dark blue)
+- Secondary: #4A6FA5 (steel blue)
+- Accent: #C4A35A (gold)
+- Low risk: #2E7D5B (green)
+- Medium risk: #D4A03C (amber)
+- High risk: #B94A48 (red)
+- Background: #F7F8FA
+- Text primary: #1A1A2E
+
+### Charts
+- White background with subtle gridlines (#E5E7EB)
+- No gradients, no 3D, no shadows
+- Always include hover tooltips (in Swedish)
+- Use risk colors for classification visualizations
+
+## Code Style
+
+- Use type hints for all functions
+- Include docstrings for public functions
+- Follow PEP 8 conventions
+- Keep functions focused and small
+- Use dataclasses or TypedDict for complex data structures
+
+## Data Pipeline
+
+- Always cache API responses in data/cache/
+- Log all API calls
+- Implement retry logic with exponential backoff
+- Save processed data as parquet files
+- Validate data completeness before computation
+
+## Testing
+
+- Write tests for all computation logic
+- Validate known municipalities (Danderyd = low risk, Dorotea = high risk)
+- Check z-score properties (mean ≈ 0, std ≈ 1)
+- Verify weights sum to 1.0
