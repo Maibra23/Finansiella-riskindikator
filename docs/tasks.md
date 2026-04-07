@@ -478,7 +478,7 @@ All text in Swedish, no exceptions.
 **Executor:** Claude Code
 **What:** Create app/components/sweden_map.py with map visualization
 **Why:** The map is the most visually impressive element. Requires GeoJSON data for Swedish municipalities.
-**How:** Fetch GeoJSON, map municipalities to risk levels, render with plotly.
+**How:** Centroids or GeoJSON; render via streamlit-echarts using `build_sweden_geo_scatter` in `app/components/charts.py`.
 
 **Prompt for Claude Code:**
 ```
@@ -488,7 +488,7 @@ Context: Read:
 
 Task: Create app/components/sweden_map.py with map functionality.
 
-Function render_sweden_map(kri_df, year) -> plotly.Figure:
+Function render_sweden_map(kri_df, year) wrapping st_echarts with options from build_sweden_geo_scatter:
 
 1. GeoJSON source for Swedish municipalities:
    - Primary: download from SCB geodata or Lantmateriet open data
@@ -504,11 +504,11 @@ Function render_sweden_map(kri_df, year) -> plotly.Figure:
    - Color by risk class (green/amber/red) or KRI score (continuous blue to red)
    - Hover info in Swedish: municipality name, KRI score, rank, risk class
 
-4. Plotly configuration:
+4. ECharts geo / scatter configuration:
    - Centered on Sweden (lat ~63, lon ~17)
    - Appropriate zoom level
    - Clean background (no base map or minimal)
-   - Remove unnecessary plotly controls
+   - Styling from get_echarts_base_options / theme
 
 5. Fallback if GeoJSON does not work:
    - Scatter plot with municipality centroids (lat/lon)
@@ -550,22 +550,25 @@ ROW 2: Two columns
   - Color coded bars (one color per variable)
   - Swedish variable names as labels
   - Clearly shows which factor drives risk the most
+  - Use st_echarts with build_horizontal_contribution_bar from app/components/charts.py
 
 - Right: Radar chart (spider chart)
   - 5 axes, one per variable (Swedish names on axes)
   - Shows selected municipality vs national average ("Rikssnitt")
-  - Use plotly go.Scatterpolar
+  - Use streamlit-echarts: build_radar from app/components/charts.py
 
 ROW 3: Comparison
 - Multiselect to pick 2 to 5 municipalities (label: "Jämför kommuner")
 - Grouped bar chart comparing risk components side by side
 - Swedish labels throughout
+- Use st_echarts with build_grouped_bars_comparison from app/components/charts.py
 
 ROW 4: Time trend
 - Line chart showing KRI score evolution 2010 to 2024 for selected municipalities
 - Color per municipality
 - Risk zone background colors
 - X axis: "År", Y axis: "KRI Poäng"
+- Use st_echarts with build_line_trend from app/components/charts.py
 ```
 
 ---
@@ -610,6 +613,7 @@ ROW 3: Trend line chart
 - Risk zone background colors
 - Clear marking of selected year
 - Axis labels in Swedish
+- Use streamlit-echarts: build_line_trend from app/components/charts.py
 
 ROW 4: Peer comparison
 - Table header: "10 mest liknande kommuner"
@@ -667,6 +671,7 @@ Functions:
    - Add an expandable "Datakvalitet" section on each page
    - Show summary with green/yellow/red indicators
    - All displayed text in Swedish
+   - No new chart library: future chart pages use streamlit-echarts with the same theme helpers as Page 1
 ```
 
 ---
@@ -758,7 +763,10 @@ VISUAL:
 - [ ] KPI cards have correct formatting (thousand separators, decimals)
 - [ ] Tables have zebra striping
 - [ ] Hover tooltips work on all charts
-- [ ] No default plotly branding (remove plotly logo)
+- [ ] All ECharts charts use get_echarts_base_options() as base merge
+- [ ] All ECharts tooltips use consistent styling from get_tooltip_style()
+- [ ] All ECharts axes use consistent styling from get_axis_style()
+- [ ] No ECharts default theme leakage (orange colors, default fonts)
 
 FUNCTIONAL:
 - [ ] Year selector works and updates all elements

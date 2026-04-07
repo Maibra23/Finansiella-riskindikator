@@ -108,30 +108,38 @@ VARIABLE_DIRECTION = {
 # DESIGN CONSTANTS (Colors)
 # =============================================================================
 
+# Design tokens aligned with banking/insurance standard
 COLORS = {
-    # Primary palette
-    "primary": "#1B2A4A",       # Dark blue
-    "secondary": "#4A6FA5",     # Steel blue
-    "accent": "#C4A35A",        # Gold
-
-    # Risk colors
-    "low_risk": "#2E7D5B",      # Green
-    "medium_risk": "#D4A03C",   # Amber
-    "high_risk": "#B94A48",     # Red
-
-    # UI colors
-    "background": "#F7F8FA",
+    "primary": "#0B1F3F",
+    "primary_light": "#1B2A4A",
+    "secondary": "#4A6FA5",
+    "accent": "#C4A35A",
+    "low_risk": "#2E7D5B",
+    "medium_risk": "#D4A03C",
+    "high_risk": "#B94A48",
+    "bg": "#F7F8FA",
+    "card_bg": "#FFFFFF",
     "text_primary": "#1A1A2E",
     "text_secondary": "#6B7280",
-    "grid_lines": "#E5E7EB",
-    "white": "#FFFFFF",
+    "text_tertiary": "#9CA3AF",
+    "border": "#EEF0F3",
+    "grid": "#E5E7EB",
+    "hover": "#F9FAFB",
 }
 
-# Risk class color mapping (Swedish labels)
+DIVERGING_SCALE = [
+    "#2E7D5B",
+    "#A8C4A4",
+    "#E5E7EB",
+    "#E8BE7C",
+    "#D4A03C",
+    "#B94A48",
+]
+
 RISK_CLASS_COLORS = {
-    "Låg": COLORS["low_risk"],
-    "Medel": COLORS["medium_risk"],
-    "Hög": COLORS["high_risk"],
+    "Låg": "#2E7D5B",
+    "Medel": "#D4A03C",
+    "Hög": "#B94A48",
 }
 
 # =============================================================================
