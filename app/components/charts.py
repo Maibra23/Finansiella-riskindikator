@@ -120,6 +120,7 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
     idx_high = min(n_bins, int((0.6745 - lo) / step) + 1)
 
     base = copy.deepcopy(get_echarts_base_options())
+    base["grid"] = {"left": 56, "right": 28, "top": 20, "bottom": 70, "containLabel": True}
     base["tooltip"] = {
         **get_tooltip_style(),
         "trigger": "axis",
@@ -136,12 +137,14 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             "  var zone = lo < -0.6745 ? 'Låg risk' : (lo >= 0.6745 ? 'Hög risk' : 'Medel risk');"
             "  var zoneColor = lo < -0.6745 ? '#2E7D5B' : (lo >= 0.6745 ? '#B94A48' : '#D4A03C');"
             "  var zBadge = '<span style=\"background:' + zoneColor + ';color:#fff;"
-            "border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600;\">' + zone + '</span>';"
-            "  return '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:6px\">"
-            "KRI-intervall: ' + loStr + ' \\u2013 ' + hiStr + '</div>'"
-            "  + zBadge + '<br/><br/>'"
-            "  + '<span style=\"color:#1A1A2E\">Antal kommuner: <b>' + count + '</b> av 290<br/>'"
-            "  + 'Andel: <b>' + pct + ' %</b></span>';"
+            "border-radius:3px;padding:2px 8px;font-size:11px;font-weight:700;\">' + zone + '</span>';"
+            "  return '<div style=\"font-weight:700;font-size:13px;color:#1A1A2E;margin-bottom:8px\">"
+            "KRI-intervall: ' + loStr + ' \u2013 ' + hiStr + '</div>'"
+            "  + '<div style=\"margin-bottom:8px\">' + zBadge + '</div>'"
+            "  + '<div style=\"font-size:11px;color:#1A1A2E;line-height:1.8\">"
+            "Antal kommuner: <b>' + count + '</b> av 290<br/>'"
+            "  + 'Andel: <b>' + pct + '\u202f%</b><br/>'"
+            "  + '<span style=\"color:#6B7280;font-size:10px\">KRI = viktat z-po\u00e4ngindex \u2212 h\u00f6gre v\u00e4rde = h\u00f6gre risk</span></div>';"
             "}"
         ),
     }
@@ -243,7 +246,7 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
         )
 
     base = copy.deepcopy(get_echarts_base_options())
-    base["grid"] = {"left": 130, "right": 60, "top": 50, "bottom": 50, "containLabel": True}
+    base["grid"] = {"left": 150, "right": 70, "top": 30, "bottom": 50, "containLabel": True}
     base["tooltip"] = {
         **get_tooltip_style(),
         "trigger": "axis",
@@ -254,16 +257,14 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
             "  var p = params[0];"
             "  var v = typeof p.value === 'number' ? p.value : "
             "         (typeof p.value === 'object' && p.value !== null ? (p.value.value || 0) : 0);"
-            "  var vStr = v.toFixed(3).replace('.', ',');"
-            "  var sign = v >= 0 ? '+' : '';"
-            "  var dir = v > 0.01 ? 'Ökar risken' : (v < -0.01 ? 'Minskar risken' : 'Neutralt');"
+            "  var vStr = (v >= 0 ? '+' : '') + v.toFixed(3).replace('.', ',');"
+            "  var dir = v > 0.01 ? '\u25b2 \u00d6kar risk' : (v < -0.01 ? '\u25bc Minskar risk' : '\u2500 Neutral p\u00e5verkan');"
             "  var dirColor = v > 0.01 ? '#B94A48' : (v < -0.01 ? '#2E7D5B' : '#6B7280');"
-            "  var absV = Math.abs(v);"
-            "  var share = (absV * 100).toFixed(1).replace('.', ',');"
-            "  return '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:6px\">' + p.name + '</div>'"
-            "  + '<span style=\"color:#1A1A2E\">Bidrag till KRI: <b>' + sign + vStr + '</b><br/>'"
+            "  return '<div style=\"font-weight:700;font-size:13px;color:#1A1A2E;margin-bottom:8px\">' + p.name + '</div>'"
+            "  + '<div style=\"font-size:11px;color:#1A1A2E;line-height:1.8\">"
+            "Bidrag till KRI: <b style=\"font-family:monospace\">' + vStr + ' po\u00e4ng</b><br/>'"
             "  + '<span style=\"color:' + dirColor + ';font-weight:600\">' + dir + '</span><br/>'"
-            "  + 'Absolut bidrag: <b>' + share + ' % av KRI-enheter</b></span>';"
+            "  + '<span style=\"color:#6B7280;font-size:10px\">V\u00e4gd z-po\u00e4ng \u00d7 indikatorvikt</span></div>';"
             "}"
         ),
     }
@@ -515,20 +516,24 @@ def build_grouped_bars_comparison(
             "}"
         ),
     }
+    base["grid"] = {"left": 56, "right": 24, "top": 60, "bottom": 80, "containLabel": True}
     base["legend"] = {
         "data": list(components.keys()),
         "top": 10,
-        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
+        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"], "fontSize": 11},
+        "type": "scroll",
     }
     base["xAxis"] = {
         **get_axis_style("category"),
         "type": "category",
         "data": municipalities,
+        "axisLabel": {"rotate": 20, "fontSize": 11, "overflow": "truncate", "width": 120},
     }
     base["yAxis"] = {
         **get_axis_style("value"),
         "type": "value",
         "name": "Bidrag till KRI",
+        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 11},
     }
     series: list[dict[str, Any]] = []
     for i, (comp_name, vals) in enumerate(components.items()):
@@ -595,10 +600,10 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
 
     base = copy.deepcopy(get_echarts_base_options())
     base["grid"] = {
-        "left": 48,
+        "left": 60,
         "right": 28,
-        "top": 24,
-        "bottom": 90,
+        "top": 16,
+        "bottom": 100,
         "containLabel": True,
     }
     base["tooltip"] = {
@@ -633,29 +638,41 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
         ),
     }
 
-    # Sweden bounding box (approx.) for a map-like frame; hide technical degree labels
-    _clean_axis: dict[str, Any] = {
-        "axisLabel": {"show": False},
-        "axisLine": {"show": False},
-        "axisTick": {"show": False},
-        "name": "",
+    # Sweden geographic bounding box — show lat/lon axes to give spatial scale context
+    _geo_axis_label: dict[str, Any] = {
+        "show": True,
+        "color": COLORS["text_tertiary"],
+        "fontSize": 9,
+        "fontFamily": "Source Sans Pro",
     }
     base["xAxis"] = {
         **get_axis_style("value"),
-        **_clean_axis,
         "type": "value",
         "min": 10.8,
         "max": 24.4,
         "scale": True,
+        "name": "Longitud (°E)",
+        "nameLocation": "middle",
+        "nameGap": 28,
+        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 10, "fontFamily": "Source Sans Pro"},
+        "axisLabel": {**_geo_axis_label, "formatter": "{value}°"},
+        "axisLine": {"show": False},
+        "axisTick": {"show": False},
         "splitLine": {"show": True, "lineStyle": {"color": COLORS["grid"], "opacity": 0.3}},
     }
     base["yAxis"] = {
         **get_axis_style("value"),
-        **_clean_axis,
         "type": "value",
         "min": 55.0,
         "max": 69.3,
         "scale": True,
+        "name": "Latitud (°N)",
+        "nameLocation": "middle",
+        "nameGap": 38,
+        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 10, "fontFamily": "Source Sans Pro"},
+        "axisLabel": {**_geo_axis_label, "formatter": "{value}°"},
+        "axisLine": {"show": False},
+        "axisTick": {"show": False},
         "splitLine": {"show": True, "lineStyle": {"color": COLORS["grid"], "opacity": 0.3}},
     }
     base["visualMap"] = {
@@ -683,4 +700,100 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
             "data": enriched,
         }
     ]
+    return base
+
+
+def build_raw_indicator_histogram(
+    values: list[float],
+    label: str,
+    unit: str,
+    n_bins: int = 20,
+) -> dict[str, Any]:
+    """Histogram of a raw (pre-normalization) indicator in its natural unit.
+
+    Used to show users the indicator's distribution before z-score standardisation.
+    """
+    if not values:
+        return {}
+    lo = min(values)
+    hi = max(values) + 1e-9
+    step = (hi - lo) / n_bins
+    edges = [lo + i * step for i in range(n_bins + 1)]
+    counts = [0] * n_bins
+    for x in values:
+        idx = min(int((x - lo) / step), n_bins - 1)
+        counts[idx] += 1
+
+    def _fmt_k(v: float) -> str:
+        if abs(v) >= 1_000_000:
+            return f"{v / 1_000_000:.1f}M"
+        if abs(v) >= 1_000:
+            return f"{v / 1_000:.0f}k"
+        return f"{v:.1f}"
+
+    categories = [_fmt_k(edges[i]) for i in range(n_bins)]
+    bar_data = [
+        {"value": c, "itemStyle": {"color": COLORS["secondary"], "borderRadius": [2, 2, 0, 0]}}
+        for c in counts
+    ]
+
+    edges_js = "[" + ",".join(str(round(e, 2)) for e in edges) + "]"
+
+    base = copy.deepcopy(get_echarts_base_options())
+    base["grid"] = {"left": 56, "right": 28, "top": 20, "bottom": 70, "containLabel": True}
+    base["tooltip"] = {
+        **get_tooltip_style(),
+        "trigger": "axis",
+        "formatter": (
+            "function(params) {"
+            "  var edges = " + edges_js + ";"
+            "  if (!params || !params.length) return '';"
+            "  var i = params[0].dataIndex;"
+            "  var lo = edges[i], hi = edges[i + 1];"
+            "  var fmt = function(v) {"
+            "    if (Math.abs(v) >= 1000000) return (v/1000000).toFixed(1).replace('.',',') + '\u202fM';"
+            "    if (Math.abs(v) >= 1000) return Math.round(v/1000) + '\u202fk';"
+            "    return v.toFixed(1).replace('.',',');"
+            "  };"
+            "  var count = (typeof params[0].value === 'object' && params[0].value !== null)"
+            "    ? (params[0].value.value || 0) : (params[0].value || 0);"
+            "  var pct = (Number(count) / 290 * 100).toFixed(1).replace('.', ',');"
+            "  return '<div style=\"font-weight:700;font-size:13px;color:#1A1A2E;margin-bottom:8px\">"
+            + label + ": ' + fmt(lo) + ' \u2013 ' + fmt(hi) + ' " + unit + "</div>'"
+            "  + '<div style=\"font-size:11px;color:#1A1A2E;line-height:1.8\">"
+            "Antal kommuner: <b>' + count + '</b> av 290<br/>'"
+            "  + 'Andel: <b>' + pct + '\u202f%</b><br/>'"
+            "  + '<span style=\"color:#6B7280;font-size:10px\">R\u00e5data f\u00f6re z-po\u00e4ngsnormalisering</span></div>';"
+            "}"
+        ),
+    }
+    base["xAxis"] = {
+        **get_axis_style("category"),
+        "type": "category",
+        "data": categories,
+        "name": f"{label} ({unit})",
+        "nameLocation": "middle",
+        "nameGap": 36,
+        "nameTextStyle": {
+            "color": COLORS["text_secondary"],
+            "fontSize": 11,
+            "fontFamily": "Source Sans Pro",
+            "fontWeight": 600,
+        },
+        "axisLabel": {"interval": max(0, n_bins // 8 - 1), "rotate": 30, "fontSize": 10},
+    }
+    base["yAxis"] = {
+        **get_axis_style("value"),
+        "type": "value",
+        "name": "Antal kommuner",
+        "nameTextStyle": {
+            "color": COLORS["text_secondary"],
+            "fontSize": 11,
+            "fontFamily": "Source Sans Pro",
+            "fontWeight": 600,
+            "padding": [0, 0, 10, 0],
+        },
+        "axisLine": {"show": False},
+    }
+    base["series"] = [{"type": "bar", "data": bar_data, "barWidth": "85%"}]
     return base
