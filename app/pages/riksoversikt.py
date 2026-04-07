@@ -17,7 +17,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_echarts import st_echarts
 
-from app.components.charts import build_distribution_histogram
+from app.components.charts import build_distribution_histogram, build_raw_indicator_histogram
 from app.components.sweden_map import render_sweden_map
 from app.styles.theme import (
     apply_streamlit_theme,
@@ -333,22 +333,52 @@ with map_col:
             unsafe_allow_html=True,
         )
         render_sweden_map(filtered_df, selected_year, height="440px")
+    with st.expander("ℹ️ Om kartan", expanded=False):
+        st.caption(
+            "**Geografisk fördelning** visar varje kommuns centroid (mittpunkt) placerad efter "
+            "geografiska koordinater — longitud (°E) på x-axeln och latitud (°N) på y-axeln. "
+            "Axlarna spänner över Sveriges ungefärliga utsträckning: 10,8–24,4°E (väst–öst) och "
+            "55–69°N (Skåne i söder till Norrbotten i norr). Punktfärgen återger KRI-poängen: "
+            "**grön** = låg risk, **gul** = medel, **röd** = hög. Punktstorleken speglar "
+            "skuld per capita — större punkt = högre skuldbörda. Hovra över en punkt för "
+            "detaljerad kommuninformation."
+        )
 
 with dist_col:
     with st.container(border=True):
+        _dist_view = st.segmented_control(
+            "Vy",
+            options=["KRI (normaliserad)", "Skuld per capita (rådata)"],
+            default="KRI (normaliserad)",
+            label_visibility="collapsed",
+            key=f"dist_view_{selected_year}",
+        )
+        _show_raw = _dist_view == "Skuld per capita (rådata)"
         st.markdown(
             render_card_header(
-                "KRI-fördelning",
-                "Fördelning över 290 kommuner",
+                "KRI-fördelning" if not _show_raw else "Skuld per capita — rådata",
+                ("Fördelning av z-poäng över 290 kommuner" if not _show_raw
+                 else "Fördelning av råvärden före normalisering"),
                 "Histogram",
             ),
             unsafe_allow_html=True,
         )
-        hist_opt = build_distribution_histogram(scores, median_kri)
-        st_echarts(
-            options=hist_opt,
-            height="440px",
-            key=f"dist_{selected_year}_{_risk_key}",
+        if _show_raw:
+            raw_vals = year_df["debt_per_capita"].astype(float).tolist()
+            raw_opt = build_raw_indicator_histogram(raw_vals, "Skuld per capita", "kr")
+            st_echarts(options=raw_opt, height="400px", key=f"raw_hist_{selected_year}_{_risk_key}")
+        else:
+            hist_opt = build_distribution_histogram(scores, median_kri)
+            st_echarts(options=hist_opt, height="400px", key=f"dist_{selected_year}_{_risk_key}")
+    with st.expander("ℹ️ Om fördelningsgrafen", expanded=False):
+        st.caption(
+            "**Normaliserad KRI** visar det sammansatta riskindexet som viktat z-poänggenomsnitt "
+            "av fem indikatorer (skuld, arbetslöshet, försörjningskvot, befolkningstillväxt, "
+            "skattekraft). Värden nära 0 är genomsnittliga; negativa värden indikerar lägre risk "
+            "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk (KRI < −0,67), "
+            "gula = medel, röda = hög (KRI > +0,67). Den streckade linjen visar medianen. — "
+            "**Rådata (skuld)** visar skuld per capita i kronor *innan* z-poängsnormalisering, "
+            "vilket illustrerar hur indexet omvandlar absoluta värden till jämförbara poäng."
         )
 
 # ---------------------------------------------------------------------------
@@ -386,6 +416,15 @@ def _table_html(df: pd.DataFrame) -> str:
         + "</tbody></table>"
     )
 
+
+with st.expander("ℹ️ Om rankningstabellerna", expanded=False):
+    st.caption(
+        "**Topp 15 högst risk** visar de 15 kommuner med lägst rang (rang 1 = mest sårbar) för "
+        "valt år. **Topp 15 lägst risk** visar de 15 mest robusta kommunerna. KRI Poäng är det "
+        "sammansatta z-poängindexet — ju högre värde, desto större strukturell sårbarhet. "
+        "Riskklassen baseras på kvartilar: kommuner under 25:e percentilen klassas som Låg risk, "
+        "kommuner över 75:e percentilen som Hög risk."
+    )
 
 tbl1, tbl2 = st.columns(2, gap="medium")
 
