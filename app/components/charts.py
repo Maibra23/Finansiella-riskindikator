@@ -131,17 +131,17 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             "  var hi = lo + " + str(round(step, 4)) + ";"
             "  var loStr = lo.toFixed(2).replace('.', ',');"
             "  var hiStr = hi.toFixed(2).replace('.', ',');"
-            "  var count = p.value || 0;"
-            "  var pct = (count / 290 * 100).toFixed(1).replace('.', ',');"
+            "  var count = (typeof p.value === 'object' && p.value !== null) ? (p.value.value || 0) : (p.value || 0);"
+            "  var pct = (Number(count) / 290 * 100).toFixed(1).replace('.', ',');"
             "  var zone = lo < -0.6745 ? 'Låg risk' : (lo >= 0.6745 ? 'Hög risk' : 'Medel risk');"
             "  var zoneColor = lo < -0.6745 ? '#2E7D5B' : (lo >= 0.6745 ? '#B94A48' : '#D4A03C');"
             "  var zBadge = '<span style=\"background:' + zoneColor + ';color:#fff;"
             "border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600;\">' + zone + '</span>';"
-            "  return '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">"
-            "KRI-intervall: ' + loStr + ' till ' + hiStr + '</div>'"
+            "  return '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:6px\">"
+            "KRI-intervall: ' + loStr + ' \\u2013 ' + hiStr + '</div>'"
             "  + zBadge + '<br/><br/>'"
-            "  + 'Antal kommuner: <b>' + count + '</b> av 290<br/>'"
-            "  + 'Andel: <b>' + pct + ' %</b>';"
+            "  + '<span style=\"color:#1A1A2E\">Antal kommuner: <b>' + count + '</b> av 290<br/>'"
+            "  + 'Andel: <b>' + pct + ' %</b></span>';"
             "}"
         ),
     }
@@ -243,7 +243,7 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
         )
 
     base = copy.deepcopy(get_echarts_base_options())
-    base["grid"] = {"left": 120, "right": 60, "top": 40, "bottom": 40, "containLabel": True}
+    base["grid"] = {"left": 130, "right": 60, "top": 50, "bottom": 50, "containLabel": True}
     base["tooltip"] = {
         **get_tooltip_style(),
         "trigger": "axis",
@@ -252,17 +252,18 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
             "function(params) {"
             "  if (!params || !params.length) return '';"
             "  var p = params[0];"
-            "  var v = typeof p.value === 'number' ? p.value : 0;"
+            "  var v = typeof p.value === 'number' ? p.value : "
+            "         (typeof p.value === 'object' && p.value !== null ? (p.value.value || 0) : 0);"
             "  var vStr = v.toFixed(3).replace('.', ',');"
             "  var sign = v >= 0 ? '+' : '';"
             "  var dir = v > 0.01 ? 'Ökar risken' : (v < -0.01 ? 'Minskar risken' : 'Neutralt');"
             "  var dirColor = v > 0.01 ? '#B94A48' : (v < -0.01 ? '#2E7D5B' : '#6B7280');"
-            "  var abs = Math.abs(v);"
-            "  var share = (abs * 100).toFixed(1).replace('.', ',');"
-            "  return '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">' + p.name + '</div>'"
-            "  + 'Bidrag till KRI: <b>' + sign + vStr + '</b><br/>'"
+            "  var absV = Math.abs(v);"
+            "  var share = (absV * 100).toFixed(1).replace('.', ',');"
+            "  return '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:6px\">' + p.name + '</div>'"
+            "  + '<span style=\"color:#1A1A2E\">Bidrag till KRI: <b>' + sign + vStr + '</b><br/>'"
             "  + '<span style=\"color:' + dirColor + ';font-weight:600\">' + dir + '</span><br/>'"
-            "  + 'Absolut bidrag: <b>' + share + ' % av KRI-enheter</b>';"
+            "  + 'Absolut bidrag: <b>' + share + ' % av KRI-enheter</b></span>';"
             "}"
         ),
     }
@@ -298,7 +299,7 @@ def build_radar(
             "  var vals = params.value;"
             "  var name = params.seriesName || params.name || '';"
             "  var isRef = name === 'Rikssnitt';"
-            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">' + name + '</div>';"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:6px\">' + name + '</div>';"
             "  for (var i = 0; i < indicators.length; i++) {"
             "    var v = typeof vals[i] === 'number' ? vals[i] : 0;"
             "    var vStr = v.toFixed(2).replace('.', ',');"
@@ -306,7 +307,7 @@ def build_radar(
             "    var col = v > 0.5 ? '#B94A48' : (v < -0.5 ? '#2E7D5B' : '#D4A03C');"
             "    if (isRef) col = '#9CA3AF';"
             "    out += '<div style=\"display:flex;justify-content:space-between;gap:16px;"
-            "font-size:11px;padding:1px 0\">';"
+            "font-size:11px;color:#1A1A2E;padding:1px 0\">';"
             "    out += '<span>' + indicators[i] + '</span>';"
             "    out += '<span style=\"font-weight:600;color:' + col + '\">' + sign + vStr + '</span>';"
             "    out += '</div>';"
@@ -369,18 +370,19 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
             "function(params) {"
             "  if (!params || !params.length) return '';"
             "  var year = params[0].axisValue;"
-            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:8px\">År: ' + year + '</div>';"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:8px\">"
+            "\\u00c5r: ' + year + '</div>';"
             "  for (var i = 0; i < params.length; i++) {"
             "    var p = params[i];"
             "    var v = typeof p.value === 'number' ? p.value : null;"
-            "    if (v === null) continue;"
+            "    if (v === null || isNaN(v)) continue;"
             "    var vStr = v.toFixed(3).replace('.', ',');"
             "    var zone = v < -0.6745 ? 'Låg risk' : (v > 0.6745 ? 'Hög risk' : 'Medel risk');"
             "    var zoneCol = v < -0.6745 ? '#2E7D5B' : (v > 0.6745 ? '#B94A48' : '#D4A03C');"
             "    var dot = '<span style=\"display:inline-block;width:8px;height:8px;"
             "border-radius:50%;background:' + p.color + ';margin-right:6px;\"></span>';"
             "    out += '<div style=\"display:flex;align-items:center;justify-content:space-between;"
-            "gap:20px;font-size:11px;padding:2px 0;\">';"
+            "gap:20px;font-size:11px;color:#1A1A2E;padding:2px 0;\">';"
             "    out += '<span>' + dot + p.seriesName + '</span>';"
             "    out += '<span style=\"font-family:monospace;font-weight:600\">' + vStr + '"
             "       + ' <span style=\"color:' + zoneCol + ';font-size:10px\">' + zone + '</span></span>';"
@@ -390,11 +392,15 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
             "}"
         ),
     }
+    base["grid"] = {"left": 56, "right": 30, "top": 60, "bottom": 70, "containLabel": True}
     base["legend"] = {
         "data": list(series_dict.keys()),
-        "top": 10,
+        "top": 6,
         "right": 20,
-        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
+        "textStyle": {"fontFamily": "Source Sans Pro", "fontSize": 11, "color": COLORS["text_primary"]},
+        "type": "scroll",
+        "pageIconColor": COLORS["primary"],
+        "pageTextStyle": {"color": COLORS["text_secondary"]},
     }
     base["xAxis"] = {
         **get_axis_style("category"),
@@ -409,9 +415,24 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
         "name": "KRI Poäng",
         "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 11},
     }
+    _TREND_PALETTE = [
+        COLORS["primary"],     # #0B1F3F
+        COLORS["high_risk"],   # #B94A48
+        COLORS["secondary"],   # #4A6FA5
+        COLORS["low_risk"],    # #2E7D5B
+        COLORS["accent"],      # #C4A35A
+        "#7B2D8E",             # purple
+        "#E07040",             # orange
+    ]
     series_list: list[dict[str, Any]] = []
+    color_idx = 0
     for name, vals in series_dict.items():
         is_ref = name == "Rikssnitt"
+        if is_ref:
+            line_color = COLORS["text_tertiary"]
+        else:
+            line_color = _TREND_PALETTE[color_idx % len(_TREND_PALETTE)]
+            color_idx += 1
         series_list.append(
             {
                 "name": name,
@@ -420,10 +441,10 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
                 "smooth": True,
                 "lineStyle": {
                     "width": 2.5,
-                    "color": COLORS["text_tertiary"] if is_ref else COLORS["primary"],
+                    "color": line_color,
                     "type": "dashed" if is_ref else "solid",
                 },
-                "itemStyle": {"color": COLORS["text_tertiary"] if is_ref else COLORS["primary"]},
+                "itemStyle": {"color": line_color},
                 "showSymbol": False,
             }
         )
@@ -463,7 +484,7 @@ def build_grouped_bars_comparison(
             "function(params) {"
             "  if (!params || !params.length) return '';"
             "  var muni = params[0].axisValue;"
-            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:8px\">' + muni + '</div>';"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;color:#1A1A2E;margin-bottom:8px\">' + muni + '</div>';"
             "  var total = 0;"
             "  for (var i = 0; i < params.length; i++) {"
             "    var v = typeof params[i].value === 'number' ? params[i].value : 0;"
@@ -473,11 +494,11 @@ def build_grouped_bars_comparison(
             "    var p = params[j];"
             "    var v = typeof p.value === 'number' ? p.value : 0;"
             "    var vStr = (v >= 0 ? '+' : '') + v.toFixed(3).replace('.', ',');"
-            "    var dir = v > 0.01 ? '▲ Ökar risk' : (v < -0.01 ? '▼ Minskar risk' : '─ Neutral');"
+            "    var dir = v > 0.01 ? '\\u25b2 \\u00d6kar risk' : (v < -0.01 ? '\\u25bc Minskar risk' : '\\u2500 Neutral');"
             "    var dirCol = v > 0.01 ? '#B94A48' : (v < -0.01 ? '#2E7D5B' : '#9CA3AF');"
             "    var dot = '<span style=\"display:inline-block;width:8px;height:8px;"
             "border-radius:2px;background:' + p.color + ';margin-right:6px;\"></span>';"
-            "    out += '<div style=\"font-size:11px;padding:2px 0;display:flex;"
+            "    out += '<div style=\"font-size:11px;color:#1A1A2E;padding:2px 0;display:flex;"
             "justify-content:space-between;gap:16px\">';"
             "    out += '<span>' + dot + p.seriesName + '</span>';"
             "    out += '<span style=\"font-weight:600;font-family:monospace\">' + vStr"
@@ -485,8 +506,8 @@ def build_grouped_bars_comparison(
             "    out += '</div>';"
             "  }"
             "  var totalStr = (total >= 0 ? '+' : '') + total.toFixed(3).replace('.', ',');"
-            "  out += '<div style=\"margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);"
-            "font-size:11px;display:flex;justify-content:space-between\">';"
+            "  out += '<div style=\"margin-top:8px;padding-top:6px;border-top:1px solid #EEF0F3;"
+            "font-size:11px;color:#1A1A2E;display:flex;justify-content:space-between\">';"
             "  out += '<span style=\"font-weight:600\">KRI Totalt</span>';"
             "  out += '<span style=\"font-weight:700;font-family:monospace\">' + totalStr + '</span>';"
             "  out += '</div>';"
@@ -577,44 +598,36 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
         "left": 48,
         "right": 28,
         "top": 24,
-        "bottom": 72,
+        "bottom": 90,
         "containLabel": True,
     }
     base["tooltip"] = {
+        **get_tooltip_style(),
         "trigger": "item",
-        "backgroundColor": COLORS["primary"],
-        "borderColor": COLORS["accent"],
-        "borderWidth": 1,
-        "padding": [10, 14],
-        "textStyle": {
-            "color": "#FFFFFF",
-            "fontFamily": "Source Sans Pro",
-            "fontSize": 12,
-        },
         "formatter": (
             "function(p) {"
             "  var v = p.value;"
-            "  var kri  = (v[2]!=null) ? Number(v[2]).toFixed(3).replace('.', ',') : '–';"
-            "  var rang = (v[3]!=null) ? v[3] : '–';"
-            "  var rk   = (v[4]!=null) ? v[4] : '–';"
-            "  var debt = (v[5]!=null) ? Math.round(v[5]).toLocaleString('sv-SE') + ' kr' : '–';"
-            "  var unemp= (v[6]!=null) ? Number(v[6]).toFixed(1).replace('.', ',') + ' %' : '–';"
-            "  var pop  = (v[7]!=null) ? (v[7]>=0?'+':'') + Number(v[7]).toFixed(1).replace('.', ',') + ' %' : '–';"
-            "  var tax  = (v[8]!=null) ? Number(v[8]).toFixed(1).replace('.', ',') + ' %' : '–';"
-            "  var rkCol= rk==='Hög'?'#F87171': rk==='Medel'?'#FCD34D':'#6EE7B7';"
-            "  var rkBadge = '<span style=\"background:' + rkCol + ';color:#0B1F3F;border-radius:3px;"
+            "  var kri  = (v[2]!=null) ? Number(v[2]).toFixed(3).replace('.', ',') : '-';"
+            "  var rang = (v[3]!=null) ? v[3] : '-';"
+            "  var rk   = (v[4]!=null) ? v[4] : '-';"
+            "  var debt = (v[5]!=null) ? Math.round(v[5]).toLocaleString('sv-SE') + ' kr' : '-';"
+            "  var unemp= (v[6]!=null) ? Number(v[6]).toFixed(1).replace('.', ',') + ' %' : '-';"
+            "  var pop  = (v[7]!=null) ? (v[7]>=0?'+':'') + Number(v[7]).toFixed(1).replace('.', ',') + ' %' : '-';"
+            "  var tax  = (v[8]!=null) ? Number(v[8]).toFixed(1).replace('.', ',') + ' %' : '-';"
+            "  var rkCol= rk==='H\\u00f6g'?'#B94A48': rk==='Medel'?'#D4A03C':'#2E7D5B';"
+            "  var rkBadge = '<span style=\"background:' + rkCol + ';color:#fff;border-radius:3px;"
             "padding:1px 7px;font-size:10px;font-weight:700;\">' + rk + '</span>';"
             "  var row = function(label, val) {"
             "    return '<div style=\"display:flex;justify-content:space-between;gap:20px;"
-            "font-size:11px;padding:1px 0\"><span style=\"color:rgba(255,255,255,0.65)\">' "
-            "+ label + '</span><span style=\"font-weight:600\">' + val + '</span></div>';"
+            "font-size:11px;color:#1A1A2E;padding:1px 0\"><span style=\"color:#6B7280\">' "
+            "+ label + '</span><span style=\"font-weight:600;color:#1A1A2E\">' + val + '</span></div>';"
             "  };"
-            "  return '<div style=\"font-weight:700;font-size:13px;margin-bottom:8px\">' + p.name + '</div>'"
-            "  + '<div style=\"margin-bottom:6px\">' + rkBadge + ' Rang ' + rang + ' av 290</div>'"
-            "  + row('KRI Poäng', kri)"
+            "  return '<div style=\"font-weight:700;font-size:13px;color:#1A1A2E;margin-bottom:8px\">' + p.name + '</div>'"
+            "  + '<div style=\"margin-bottom:6px\">' + rkBadge + ' <span style=\"color:#6B7280\">Rang ' + rang + ' av 290</span></div>'"
+            "  + row('KRI Po\\u00e4ng', kri)"
             "  + row('Skuld per capita', debt)"
-            "  + row('Arbetslöshet', unemp)"
-            "  + row('Befolkningstillväxt (5 år)', pop)"
+            "  + row('Arbetsl\\u00f6shet', unemp)"
+            "  + row('Befolkningstillv\\u00e4xt (5 \\u00e5r)', pop)"
             "  + row('Skattekraft (% av rikssnitt)', tax);"
             "}"
         ),

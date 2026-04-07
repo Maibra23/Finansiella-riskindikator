@@ -87,9 +87,9 @@ nav_items = [
 
 for num, fname, title in nav_items:
     if fname and (pages_dir / fname).exists():
-        st.sidebar.page_link(f"pages/{fname}", label=f"{num}  {title}")
+        st.sidebar.page_link(f"pages/{fname}", label=title)
     else:
-        st.sidebar.caption(f"{num}  {title}, kommer snart")
+        st.sidebar.caption(f"{title}, kommer snart")
 
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
@@ -199,17 +199,17 @@ st.markdown(
         [
             {
                 "label": f"KRI-intervall ({selected_year})",
-                "value": f"{_fmt_decimal(_kri_min, 2)} till {_fmt_decimal(_kri_max, 2)}",
+                "value": f"{_fmt_decimal(_kri_min, 2)} - {_fmt_decimal(_kri_max, 2)}",
                 "unit": "",
             },
             {
                 "label": "Kommuner med hög risk",
-                "value": str(_high_risk_n),
-                "unit": f" / {_n_kom}",
+                "value": f"{_high_risk_n} - {_n_kom}",
+                "unit": "",
             },
             {
                 "label": "Analysperiod",
-                "value": f"{_y_min} till {_y_max}",
+                "value": f"{_y_min} - {_y_max}",
                 "unit": "",
             },
             {
@@ -276,68 +276,33 @@ with st.container(border=True):
     with _nav_col1:
         st.markdown(
             render_landing_nav_card(
-                tag="Sida 01",
+                tag="",
                 title="Riksöversikt",
                 desc="Karta, nyckeltal och KRI-fördelning för alla kommuner.",
                 icon="map",
             ),
             unsafe_allow_html=True,
         )
-        st.page_link("pages/riksoversikt.py", label="Öppna Riksöversikt", use_container_width=True)
     with _nav_col2:
-        if (pages_dir / "riskdekomposition.py").exists():
-            st.markdown(
-                render_landing_nav_card(
-                    tag="Sida 02",
-                    title="Riskdekomposition",
-                    desc="Riskdrivare per vald kommun jämfört med riket.",
-                    icon="layers",
-                ),
-                unsafe_allow_html=True,
-            )
-            st.page_link(
-                "pages/riskdekomposition.py",
-                label="Öppna Riskdekomposition",
-                use_container_width=True,
-            )
-        else:
-            st.markdown(
-                render_landing_nav_card(
-                    tag="Sida 02",
-                    title="Riskdekomposition",
-                    desc="Kommer snart. Djupdykning i vad som driver risken per kommun.",
-                    icon="layers",
-                ),
-                unsafe_allow_html=True,
-            )
-            st.caption("Kommer snart")
+        st.markdown(
+            render_landing_nav_card(
+                tag="",
+                title="Riskdekomposition",
+                desc="Riskdrivare per vald kommun jämfört med riket.",
+                icon="layers",
+            ),
+            unsafe_allow_html=True,
+        )
     with _nav_col3:
-        if (pages_dir / "kommunanalys.py").exists():
-            st.markdown(
-                render_landing_nav_card(
-                    tag="Sida 03",
-                    title="Kommunanalys",
-                    desc="Trender och tabeller för vald kommun över tid.",
-                    icon="search",
-                ),
-                unsafe_allow_html=True,
-            )
-            st.page_link(
-                "pages/kommunanalys.py",
-                label="Öppna Kommunanalys",
-                use_container_width=True,
-            )
-        else:
-            st.markdown(
-                render_landing_nav_card(
-                    tag="Sida 03",
-                    title="Kommunanalys",
-                    desc="Kommer snart. Detaljerad trend och jämförelsekommuner.",
-                    icon="search",
-                ),
-                unsafe_allow_html=True,
-            )
-            st.caption("Kommer snart")
+        st.markdown(
+            render_landing_nav_card(
+                tag="",
+                title="Kommunanalys",
+                desc="Trender och tabeller för vald kommun över tid.",
+                icon="search",
+            ),
+            unsafe_allow_html=True,
+        )
 
 st.markdown(
     render_landing_credibility(

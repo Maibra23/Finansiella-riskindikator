@@ -194,6 +194,30 @@ def apply_streamlit_theme() -> None:
         gap: 0.5rem;
     }}
 
+    /* Equal-height KPI columns: stretch Streamlit horizontal rows in main */
+    [data-testid="stMain"] [data-testid="stHorizontalBlock"] {{
+        align-items: stretch !important;
+    }}
+    [data-testid="stMain"] [data-testid="column"] {{
+        display: flex !important;
+        flex-direction: column !important;
+    }}
+    [data-testid="stMain"] [data-testid="column"] > div {{
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+    }}
+
+    /* Exportera-rad: samma kortstil som KPI (använd st.container(border=True)) */
+    [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] {{
+        background: {card} !important;
+        border: 1px solid {border} !important;
+        border-radius: 4px !important;
+        padding: 16px 20px !important;
+    }}
+    [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stHorizontalBlock"] button {{
+        width: 100%;
+    }}
+
     /* KPI cards */
     .kpi-card {{
         background: {card};
@@ -203,6 +227,8 @@ def apply_streamlit_theme() -> None:
         position: relative;
         overflow: hidden;
         height: 100%;
+        min-height: 148px;
+        box-sizing: border-box;
     }}
     .kpi-card::before {{
         content: '';
@@ -230,7 +256,7 @@ def apply_streamlit_theme() -> None:
         font-size: 32px;
         font-weight: 700;
         color: {p};
-        letter-spacing: -0.8px;
+        letter-spacing: 0.02em;
         line-height: 1.1;
         font-variant-numeric: tabular-nums;
     }}
@@ -238,7 +264,8 @@ def apply_streamlit_theme() -> None:
         font-size: 14px;
         font-weight: 400;
         color: {text_sec};
-        margin-left: 4px;
+        margin-left: 0.45em;
+        white-space: nowrap;
     }}
     .kpi-delta {{
         display: flex;
@@ -937,18 +964,19 @@ def apply_streamlit_theme() -> None:
 
 
 def get_tooltip_style() -> dict[str, Any]:
-    """Return consistent ECharts tooltip styling (dark navy, gold border)."""
+    """Return consistent ECharts tooltip styling (light card, dark text)."""
     return {
         "trigger": "axis",
-        "backgroundColor": COLORS["primary"],
-        "borderColor": COLORS["accent"],
+        "backgroundColor": "#FFFFFF",
+        "borderColor": COLORS["border"],
         "borderWidth": 1,
-        "padding": [8, 12],
+        "padding": [10, 14],
         "textStyle": {
-            "color": "#FFFFFF",
+            "color": COLORS["text_primary"],
             "fontFamily": "Source Sans Pro",
             "fontSize": 12,
         },
+        "extraCssText": "box-shadow: 0 4px 16px rgba(0,0,0,0.10); border-radius: 6px;",
         "axisPointer": {
             "type": "line",
             "lineStyle": {"color": COLORS["accent"], "width": 1, "type": "dashed"},
@@ -978,16 +1006,24 @@ def get_axis_style(axis_type: Literal["value", "category"] = "value") -> dict[st
     return out
 
 
+def format_swedish_int(n: int | float) -> str:
+    """Format a whole number with no-break space as thousands separator (Swedish UI)."""
+    v = int(round(float(n)))
+    sign = "-" if v < 0 else ""
+    body = f"{abs(v):,}".replace(",", "\u00a0")
+    return f"{sign}{body}"
+
+
 def get_echarts_base_options() -> dict[str, Any]:
     """Shared ECharts JSON base; merge chart-specific options on top."""
     base = {
         "backgroundColor": COLORS["card_bg"],
         "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
         "grid": {
-            "left": 50,
-            "right": 20,
-            "top": 30,
-            "bottom": 60,
+            "left": 56,
+            "right": 30,
+            "top": 50,
+            "bottom": 70,
             "containLabel": True,
         },
         "tooltip": get_tooltip_style(),
