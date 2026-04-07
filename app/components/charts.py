@@ -127,10 +127,21 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             "function(params) {"
             "  if (!params || !params.length) return '';"
             "  var p = params[0];"
-            "  var lo = p.axisValue !== undefined ? parseFloat(p.axisValue).toFixed(1).replace('.', ',') : '';"
-            "  var hi = (parseFloat(p.axisValue) + " + str(round(step, 4)) + ").toFixed(1).replace('.', ',');"
-            "  return '<div style=\"font-weight:600;margin-bottom:4px\">KRI-intervall: ' + lo + ' till ' + hi + '</div>'"
-            "       + 'Antal kommuner: <b>' + p.value + '</b>';"
+            "  var lo = parseFloat(p.axisValue);"
+            "  var hi = lo + " + str(round(step, 4)) + ";"
+            "  var loStr = lo.toFixed(2).replace('.', ',');"
+            "  var hiStr = hi.toFixed(2).replace('.', ',');"
+            "  var count = p.value || 0;"
+            "  var pct = (count / 290 * 100).toFixed(1).replace('.', ',');"
+            "  var zone = lo < -0.6745 ? 'Låg risk' : (lo >= 0.6745 ? 'Hög risk' : 'Medel risk');"
+            "  var zoneColor = lo < -0.6745 ? '#2E7D5B' : (lo >= 0.6745 ? '#B94A48' : '#D4A03C');"
+            "  var zBadge = '<span style=\"background:' + zoneColor + ';color:#fff;"
+            "border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600;\">' + zone + '</span>';"
+            "  return '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">"
+            "KRI-intervall: ' + loStr + ' till ' + hiStr + '</div>'"
+            "  + zBadge + '<br/><br/>'"
+            "  + 'Antal kommuner: <b>' + count + '</b> av 290<br/>'"
+            "  + 'Andel: <b>' + pct + ' %</b>';"
             "}"
         ),
     }
@@ -237,8 +248,25 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
         **get_tooltip_style(),
         "trigger": "axis",
         "axisPointer": {"type": "shadow"},
+        "formatter": (
+            "function(params) {"
+            "  if (!params || !params.length) return '';"
+            "  var p = params[0];"
+            "  var v = typeof p.value === 'number' ? p.value : 0;"
+            "  var vStr = v.toFixed(3).replace('.', ',');"
+            "  var sign = v >= 0 ? '+' : '';"
+            "  var dir = v > 0.01 ? 'Ökar risken' : (v < -0.01 ? 'Minskar risken' : 'Neutralt');"
+            "  var dirColor = v > 0.01 ? '#B94A48' : (v < -0.01 ? '#2E7D5B' : '#6B7280');"
+            "  var abs = Math.abs(v);"
+            "  var share = (abs * 100).toFixed(1).replace('.', ',');"
+            "  return '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">' + p.name + '</div>'"
+            "  + 'Bidrag till KRI: <b>' + sign + vStr + '</b><br/>'"
+            "  + '<span style=\"color:' + dirColor + ';font-weight:600\">' + dir + '</span><br/>'"
+            "  + 'Absolut bidrag: <b>' + share + ' % av KRI-enheter</b>';"
+            "}"
+        ),
     }
-    base["xAxis"] = {**get_axis_style("value"), "type": "value", "name": "Bidrag"}
+    base["xAxis"] = {**get_axis_style("value"), "type": "value", "name": "Bidrag till KRI"}
     base["yAxis"] = {
         **get_axis_style("category"),
         "type": "category",
@@ -257,9 +285,38 @@ def build_radar(
 ) -> dict[str, Any]:
     """Radar chart: selected municipality vs Rikssnitt."""
     ind = [{"name": n, "max": 2.5, "min": -2.5} for n in indicators]
+    # Build indicator names JS array for tooltip
+    ind_js = "[" + ",".join(f'"{n}"' for n in indicators) + "]"
     base = copy.deepcopy(get_echarts_base_options())
     base.pop("grid", None)
-    base["tooltip"] = {**get_tooltip_style(), "trigger": "item"}
+    base["tooltip"] = {
+        **get_tooltip_style(),
+        "trigger": "item",
+        "formatter": (
+            "function(params) {"
+            "  var indicators = " + ind_js + ";"
+            "  var vals = params.value;"
+            "  var name = params.seriesName || params.name || '';"
+            "  var isRef = name === 'Rikssnitt';"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:6px\">' + name + '</div>';"
+            "  for (var i = 0; i < indicators.length; i++) {"
+            "    var v = typeof vals[i] === 'number' ? vals[i] : 0;"
+            "    var vStr = v.toFixed(2).replace('.', ',');"
+            "    var sign = v >= 0 ? '+' : '';"
+            "    var col = v > 0.5 ? '#B94A48' : (v < -0.5 ? '#2E7D5B' : '#D4A03C');"
+            "    if (isRef) col = '#9CA3AF';"
+            "    out += '<div style=\"display:flex;justify-content:space-between;gap:16px;"
+            "font-size:11px;padding:1px 0\">';"
+            "    out += '<span>' + indicators[i] + '</span>';"
+            "    out += '<span style=\"font-weight:600;color:' + col + '\">' + sign + vStr + '</span>';"
+            "    out += '</div>';"
+            "  }"
+            "  out += '<div style=\"font-size:10px;color:#9CA3AF;margin-top:6px\">"
+            "Z-poäng: +högt = hög risk, -lågt = låg risk</div>';"
+            "  return out;"
+            "}"
+        ),
+    }
     base["radar"] = {
         "indicator": ind,
         "radius": "65%",
@@ -304,7 +361,35 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
     """KRI trend lines with optional risk zone bands."""
     year_str = [str(y) for y in years]
     base = copy.deepcopy(get_echarts_base_options())
-    base["tooltip"] = {**get_tooltip_style(), "trigger": "axis"}
+    base["tooltip"] = {
+        **get_tooltip_style(),
+        "trigger": "axis",
+        "axisPointer": {"type": "line", "lineStyle": {"color": COLORS["accent"], "width": 1.5, "type": "dashed"}},
+        "formatter": (
+            "function(params) {"
+            "  if (!params || !params.length) return '';"
+            "  var year = params[0].axisValue;"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:8px\">År: ' + year + '</div>';"
+            "  for (var i = 0; i < params.length; i++) {"
+            "    var p = params[i];"
+            "    var v = typeof p.value === 'number' ? p.value : null;"
+            "    if (v === null) continue;"
+            "    var vStr = v.toFixed(3).replace('.', ',');"
+            "    var zone = v < -0.6745 ? 'Låg risk' : (v > 0.6745 ? 'Hög risk' : 'Medel risk');"
+            "    var zoneCol = v < -0.6745 ? '#2E7D5B' : (v > 0.6745 ? '#B94A48' : '#D4A03C');"
+            "    var dot = '<span style=\"display:inline-block;width:8px;height:8px;"
+            "border-radius:50%;background:' + p.color + ';margin-right:6px;\"></span>';"
+            "    out += '<div style=\"display:flex;align-items:center;justify-content:space-between;"
+            "gap:20px;font-size:11px;padding:2px 0;\">';"
+            "    out += '<span>' + dot + p.seriesName + '</span>';"
+            "    out += '<span style=\"font-family:monospace;font-weight:600\">' + vStr + '"
+            "       + ' <span style=\"color:' + zoneCol + ';font-size:10px\">' + zone + '</span></span>';"
+            "    out += '</div>';"
+            "  }"
+            "  return out;"
+            "}"
+        ),
+    }
     base["legend"] = {
         "data": list(series_dict.keys()),
         "top": 10,
@@ -370,7 +455,45 @@ def build_grouped_bars_comparison(
         COLORS["medium_risk"],
     ]
     base = copy.deepcopy(get_echarts_base_options())
-    base["tooltip"] = {**get_tooltip_style(), "trigger": "axis"}
+    base["tooltip"] = {
+        **get_tooltip_style(),
+        "trigger": "axis",
+        "axisPointer": {"type": "shadow"},
+        "formatter": (
+            "function(params) {"
+            "  if (!params || !params.length) return '';"
+            "  var muni = params[0].axisValue;"
+            "  var out = '<div style=\"font-weight:700;font-size:12px;margin-bottom:8px\">' + muni + '</div>';"
+            "  var total = 0;"
+            "  for (var i = 0; i < params.length; i++) {"
+            "    var v = typeof params[i].value === 'number' ? params[i].value : 0;"
+            "    total += v;"
+            "  }"
+            "  for (var j = 0; j < params.length; j++) {"
+            "    var p = params[j];"
+            "    var v = typeof p.value === 'number' ? p.value : 0;"
+            "    var vStr = (v >= 0 ? '+' : '') + v.toFixed(3).replace('.', ',');"
+            "    var dir = v > 0.01 ? '▲ Ökar risk' : (v < -0.01 ? '▼ Minskar risk' : '─ Neutral');"
+            "    var dirCol = v > 0.01 ? '#B94A48' : (v < -0.01 ? '#2E7D5B' : '#9CA3AF');"
+            "    var dot = '<span style=\"display:inline-block;width:8px;height:8px;"
+            "border-radius:2px;background:' + p.color + ';margin-right:6px;\"></span>';"
+            "    out += '<div style=\"font-size:11px;padding:2px 0;display:flex;"
+            "justify-content:space-between;gap:16px\">';"
+            "    out += '<span>' + dot + p.seriesName + '</span>';"
+            "    out += '<span style=\"font-weight:600;font-family:monospace\">' + vStr"
+            "         + ' <span style=\"color:' + dirCol + ';font-size:10px\">' + dir + '</span></span>';"
+            "    out += '</div>';"
+            "  }"
+            "  var totalStr = (total >= 0 ? '+' : '') + total.toFixed(3).replace('.', ',');"
+            "  out += '<div style=\"margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);"
+            "font-size:11px;display:flex;justify-content:space-between\">';"
+            "  out += '<span style=\"font-weight:600\">KRI Totalt</span>';"
+            "  out += '<span style=\"font-weight:700;font-family:monospace\">' + totalStr + '</span>';"
+            "  out += '</div>';"
+            "  return out;"
+            "}"
+        ),
+    }
     base["legend"] = {
         "data": list(components.keys()),
         "top": 10,
@@ -384,7 +507,7 @@ def build_grouped_bars_comparison(
     base["yAxis"] = {
         **get_axis_style("value"),
         "type": "value",
-        "name": "KRI Poäng",
+        "name": "Bidrag till KRI",
     }
     series: list[dict[str, Any]] = []
     for i, (comp_name, vals) in enumerate(components.items()):
@@ -435,11 +558,15 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
         risk = str(row["risk_class"])
         name = MUNICIPALITIES.get(code, str(row.get("municipality_name", code)))
         debt = float(row["debt_per_capita"])
+        unemp = float(row.get("unemployment", 0))
+        pop_growth = float(row.get("population_growth", 0))
+        tax_base = float(row.get("tax_base_relative", 0))
         size = _scale_debt_to_size(debt, dmin, dmax)
+        # value: [lon, lat, kri_score, rank, risk_class, debt, unemployment, pop_growth, tax_base]
         enriched.append(
             {
                 "name": name,
-                "value": [lon, lat, kri, rnk, risk],
+                "value": [lon, lat, kri, rnk, risk, debt, unemp, pop_growth, tax_base],
                 "symbolSize": size,
                 "itemStyle": {"opacity": 0.85, "borderColor": "#FFFFFF", "borderWidth": 0.6},
             }
@@ -458,6 +585,7 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
         "backgroundColor": COLORS["primary"],
         "borderColor": COLORS["accent"],
         "borderWidth": 1,
+        "padding": [10, 14],
         "textStyle": {
             "color": "#FFFFFF",
             "fontFamily": "Source Sans Pro",
@@ -465,14 +593,29 @@ def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
         },
         "formatter": (
             "function(p) {"
-            "var v = p.value;"
-            "var kri = (v[2]!==undefined&&v[2]!==null) ? Number(v[2]).toFixed(2).replace('.', ',') : '';"
-            "var rang = v[3]!==undefined ? v[3] : '';"
-            "var rk = v[4]!==undefined ? v[4] : '';"
-            "return '<div style=\"font-weight:600;margin-bottom:4px\">' + p.name + '</div>'"
-            "+ 'KRI Poäng: <b>' + kri + '</b><br/>'"
-            "+ 'Rang: <b>' + rang + '</b> av 290<br/>'"
-            "+ 'Riskklass: <b>' + rk + '</b>';"
+            "  var v = p.value;"
+            "  var kri  = (v[2]!=null) ? Number(v[2]).toFixed(3).replace('.', ',') : '–';"
+            "  var rang = (v[3]!=null) ? v[3] : '–';"
+            "  var rk   = (v[4]!=null) ? v[4] : '–';"
+            "  var debt = (v[5]!=null) ? Math.round(v[5]).toLocaleString('sv-SE') + ' kr' : '–';"
+            "  var unemp= (v[6]!=null) ? Number(v[6]).toFixed(1).replace('.', ',') + ' %' : '–';"
+            "  var pop  = (v[7]!=null) ? (v[7]>=0?'+':'') + Number(v[7]).toFixed(1).replace('.', ',') + ' %' : '–';"
+            "  var tax  = (v[8]!=null) ? Number(v[8]).toFixed(1).replace('.', ',') + ' %' : '–';"
+            "  var rkCol= rk==='Hög'?'#F87171': rk==='Medel'?'#FCD34D':'#6EE7B7';"
+            "  var rkBadge = '<span style=\"background:' + rkCol + ';color:#0B1F3F;border-radius:3px;"
+            "padding:1px 7px;font-size:10px;font-weight:700;\">' + rk + '</span>';"
+            "  var row = function(label, val) {"
+            "    return '<div style=\"display:flex;justify-content:space-between;gap:20px;"
+            "font-size:11px;padding:1px 0\"><span style=\"color:rgba(255,255,255,0.65)\">' "
+            "+ label + '</span><span style=\"font-weight:600\">' + val + '</span></div>';"
+            "  };"
+            "  return '<div style=\"font-weight:700;font-size:13px;margin-bottom:8px\">' + p.name + '</div>'"
+            "  + '<div style=\"margin-bottom:6px\">' + rkBadge + ' Rang ' + rang + ' av 290</div>'"
+            "  + row('KRI Poäng', kri)"
+            "  + row('Skuld per capita', debt)"
+            "  + row('Arbetslöshet', unemp)"
+            "  + row('Befolkningstillväxt (5 år)', pop)"
+            "  + row('Skattekraft (% av rikssnitt)', tax);"
             "}"
         ),
     }
