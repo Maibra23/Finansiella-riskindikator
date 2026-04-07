@@ -107,12 +107,16 @@ def apply_streamlit_theme() -> None:
         color: #E8ECF4 !important;
     }}
 
-    /* kri_dashboard_mockup.html: .sidebar padding 28px 22px */
+    /* Sidebar gutters aligned with main app vertical rhythm (same top/bottom as .block-container) */
     [data-testid="stSidebar"] .block-container {{
-        padding-top: 28px !important;
-        padding-left: 22px !important;
-        padding-right: 22px !important;
-        padding-bottom: 1.5rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 1.25rem !important;
+        padding-right: 1.25rem !important;
+        max-width: 100% !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
+        width: 100%;
     }}
 
     [data-testid="stSidebar"] label {{
@@ -974,7 +978,7 @@ def get_tooltip_style() -> dict[str, Any]:
         "textStyle": {
             "color": COLORS["text_primary"],
             "fontFamily": "Source Sans Pro",
-            "fontSize": 12,
+            "fontSize": 13,
         },
         "extraCssText": "box-shadow: 0 4px 16px rgba(0,0,0,0.10); border-radius: 6px;",
         "axisPointer": {
