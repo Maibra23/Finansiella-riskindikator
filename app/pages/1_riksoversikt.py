@@ -1,16 +1,7 @@
 """
-app/pages/1_riksoversikt.py
----------------------------
 Page 1: Riksöversikt — national overview of KRI scores for all 290 municipalities.
 
-Layout
-------
-ROW 1  Title + subtitle + selected year
-ROW 2  KPI cards (4 columns)
-ROW 3  Sweden map (60 %) + Distribution histogram (40 %)
-ROW 4  Top-15 highest risk table + Top-15 lowest risk table
-
-All user-facing text is in Swedish.
+Charts use streamlit-echarts (Apache ECharts). All user-facing text is in Swedish.
 """
 
 from __future__ import annotations
@@ -22,35 +13,55 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import json
-import urllib.request
-
-import numpy as np
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
+from streamlit_echarts import st_echarts
 
+from app.components.charts import build_distribution_histogram
+from app.components.sweden_map import render_sweden_map
 from app.styles.theme import (
-    COLORS,
     apply_streamlit_theme,
-    get_plotly_template,
-    get_risk_color,
+    render_card_header,
     render_kpi_card,
-    render_sidebar_header,
-    render_data_source_footer,
+    render_page_header,
 )
-from src.config import SWEDISH_LABELS, START_YEAR, END_YEAR, MUNICIPALITIES
+from src.config import MUNICIPALITIES, SWEDISH_LABELS
 
 # ---------------------------------------------------------------------------
 # Page setup
 # ---------------------------------------------------------------------------
 apply_streamlit_theme()
-render_sidebar_header(subtitle="Riksöversikt")
+
+# Sidebar (runs when this page is opened directly; mirrors app/main.py)
+pages_dir = PROJECT_ROOT / "app" / "pages"
+st.sidebar.markdown(
+    """
+    <div class="sidebar-brand">
+        <div class="brand-mark">KRI Kontrollpanel</div>
+        <div class="brand-title">Kommunal Risk</div>
+        <div class="brand-sub">Finansiell sårbarhet · SE</div>
+    </div>
+    <div class="nav-section">Navigation</div>
+    """,
+    unsafe_allow_html=True,
+)
+nav_items = [
+    ("01", "1_riksoversikt.py", "Riksöversikt"),
+    ("02", "2_riskdekomposition.py", "Riskdekomposition"),
+    ("03", "3_kommunanalys.py", "Kommunanalys"),
+    ("04", None, "Metod & källor"),
+]
+for num, fname, title in nav_items:
+    if fname and (pages_dir / fname).exists():
+        st.sidebar.page_link(f"pages/{fname}", label=f"{num}  {title}")
+    else:
+        st.sidebar.caption(f"{num}  {title}, kommer snart")
+st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Data — reuse cached copy from session_state if available, otherwise load.
+# Data
 # ---------------------------------------------------------------------------
+
 
 @st.cache_data(show_spinner="Laddar data…")
 def _load() -> pd.DataFrame:
@@ -65,429 +76,350 @@ if "kri_df" in st.session_state:
 else:
     kri_df = _load()
 
-# ---------------------------------------------------------------------------
-# Sidebar controls (mirrors main.py; independent when page opened directly)
-# ---------------------------------------------------------------------------
 available_years = sorted(kri_df["year"].unique().tolist())
 default_year = st.session_state.get("selected_year", max(available_years))
 
-selected_year: int = st.sidebar.slider(
+# ── Year chips ──────────────────────────────────────────────────
+st.sidebar.markdown(
+    f'<div class="sidebar-control"><div class="control-label">{SWEDISH_LABELS["select_year"]}</div></div>',
+    unsafe_allow_html=True,
+)
+_year_raw = st.sidebar.pills(
     SWEDISH_LABELS["select_year"],
-    min_value=min(available_years),
-    max_value=max(available_years),
-    value=default_year,
-    step=1,
-    format="%d",
+    options=available_years,
+    default=default_year,
+    label_visibility="collapsed",
+    key="rv_year_pills",
 )
+selected_year: int = int(_year_raw) if _year_raw is not None else default_year
 
-risk_options = ["Alla", "Hög", "Medel", "Låg"]
-default_risk = st.session_state.get("selected_risk", "Alla")
-selected_risk: str = st.sidebar.selectbox(
-    SWEDISH_LABELS["filter_risk_class"],
-    options=risk_options,
-    index=risk_options.index(default_risk) if default_risk in risk_options else 0,
-)
-
-render_data_source_footer()
-
-# Filter data for the selected year
-year_df = kri_df[kri_df["year"] == selected_year].copy()
-
-if selected_risk != "Alla":
-    filtered_df = year_df[year_df["risk_class"] == selected_risk].copy()
-else:
-    filtered_df = year_df.copy()
-
-# Previous year for deltas
-prev_year = selected_year - 1
-prev_df = kri_df[kri_df["year"] == prev_year] if prev_year in kri_df["year"].values else pd.DataFrame()
-
-# ---------------------------------------------------------------------------
-# Helper: compute delta vs previous year
-# ---------------------------------------------------------------------------
-
-def _delta(col: str, agg="mean") -> float | None:
-    if prev_df.empty:
-        return None
-    cur = year_df[col].agg(agg)
-    prv = prev_df[col].agg(agg)
-    return round(float(cur - prv), 2)
-
-
-# ---------------------------------------------------------------------------
-# ROW 1 — Title
-# ---------------------------------------------------------------------------
-
-st.markdown(
+# ── Risk filter: colored dot legend + multi-select pills ────────
+st.sidebar.markdown(
     f"""
-    <div style='margin-bottom:0.2rem;'>
-        <h1>Riksöversikt</h1>
-        <p style='font-size:16px; color:{COLORS["text_secondary"]}; margin-top:-0.4rem;'>
-            Strukturell ekonomisk sårbarhet i Sveriges 290 kommuner
-            &nbsp;|&nbsp;
-            <strong style='color:{COLORS["primary"]};'>År {selected_year}</strong>
-        </p>
+    <div class="sidebar-control">
+        <div class="control-label">{SWEDISH_LABELS["filter_risk_class"]}</div>
+        <div class="riskklass-legend">
+            <div class="riskklass-rad">
+                <span class="riskklass-punkt" style="background:#2E7D5B"></span>Låg risk
+            </div>
+            <div class="riskklass-rad">
+                <span class="riskklass-punkt" style="background:#D4A03C"></span>Medel risk
+            </div>
+            <div class="riskklass-rad">
+                <span class="riskklass-punkt" style="background:#B94A48"></span>Hög risk
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+_default_risks = st.session_state.get("selected_risks", [])
+_risks_raw = st.sidebar.pills(
+    SWEDISH_LABELS["filter_risk_class"],
+    options=["Hög", "Medel", "Låg"],
+    selection_mode="multi",
+    default=_default_risks if _default_risks else None,
+    label_visibility="collapsed",
+    key="rv_risk_pills",
+)
+selected_risks: list[str] = list(_risks_raw) if _risks_raw else []
+
+st.sidebar.markdown(
+    """
+    <div class="sidebar-footer">
+        <strong>KÄLLA:</strong> SCB, Arbetsförmedlingen<br/>
+        Senast uppdaterad 2024-12-31
     </div>
     """,
     unsafe_allow_html=True,
 )
 
+st.session_state["selected_year"] = selected_year
+st.session_state["selected_risks"] = selected_risks
+st.session_state["kri_df"] = kri_df
+
+year_df = kri_df[kri_df["year"] == selected_year].copy()
+
+# Filter by selected risk classes; empty list = show all
+if selected_risks:
+    filtered_df = year_df[year_df["risk_class"].isin(selected_risks)].copy()
+else:
+    filtered_df = year_df.copy()
+
+prev_year = selected_year - 1
+prev_df = kri_df[kri_df["year"] == prev_year] if prev_year in kri_df["year"].values else pd.DataFrame()
+
+
+def _fmt_decimal(val: float, nd: int = 2) -> str:
+    """Format float with Swedish decimal comma; avoids '-0,00' from signed zero."""
+    v = round(float(val), nd)
+    if abs(v) < 10 ** (-nd):
+        v = 0.0
+    s = f"{v:,.{nd}f}"
+    if nd > 0:
+        s = s.replace(",", "X").replace(".", ",").replace("X", "\u202f")
+    else:
+        s = s.replace(",", "\u202f")
+    return s
+
+
+def _fmt_int_space(n: float) -> str:
+    """Integer with narrow no-break space as thousands separator."""
+    return f"{int(round(n)):,}".replace(",", "\u202f")
+
+
+def _delta_kri_mean() -> tuple[str, str]:
+    if prev_df.empty:
+        return ("", "flat")
+    cur = float(year_df["kri_score"].mean())
+    prv = float(prev_df["kri_score"].mean())
+    d = cur - prv
+    if abs(d) < 1e-9:
+        return ("Oförändrat mot föregående år", "flat")
+    sign = "+" if d > 0 else ""
+    txt = f"{sign}{_fmt_decimal(d, 2)} mot {prev_year}"
+    direction = "up" if d > 0 else "down"
+    return (txt, direction)
+
+
+def _delta_high_risk() -> tuple[str, str]:
+    if prev_df.empty:
+        return ("", "flat")
+    cur = int((year_df["risk_class"] == "Hög").sum())
+    prv = int((prev_df["risk_class"] == "Hög").sum())
+    d = cur - prv
+    if d == 0:
+        return ("Oförändrat mot föregående år", "flat")
+    sign = "+" if d > 0 else ""
+    txt = f"{sign}{d} mot {prev_year}"
+    direction = "up" if d > 0 else "down"
+    return (txt, direction)
+
+
+def _delta_median_debt_pct() -> tuple[str, str]:
+    if prev_df.empty:
+        return ("", "flat")
+    cur = float(year_df["debt_per_capita"].median())
+    prv = float(prev_df["debt_per_capita"].median())
+    if prv == 0:
+        return ("", "flat")
+    pct = (cur - prv) / prv * 100.0
+    if abs(pct) < 1e-6:
+        return ("Oförändrat mot föregående år", "flat")
+    sign = "+" if pct > 0 else ""
+    txt = f"{sign}{_fmt_decimal(pct, 1)} % mot {prev_year}"
+    direction = "up" if pct > 0 else "down"
+    return (txt, direction)
+
+
+def _delta_pop_mean() -> tuple[str, str]:
+    if prev_df.empty:
+        return ("", "flat")
+    cur = float(year_df["population_growth"].mean())
+    prv = float(prev_df["population_growth"].mean())
+    d = cur - prv
+    if abs(d) < 1e-9:
+        return ("Oförändrat mot föregående år", "flat")
+    sign = "+" if d > 0 else ""
+    txt = f"{sign}{_fmt_decimal(d, 2)} pe mot {prev_year}"
+    direction = "up" if d > 0 else "down"
+    return (txt, direction)
+
+
 # ---------------------------------------------------------------------------
-# ROW 2 — KPI Cards
+# Section A — Page header
 # ---------------------------------------------------------------------------
 
-avg_kri = round(float(year_df["kri_score"].mean()), 3)
+st.markdown(
+    render_page_header(
+        eyebrow="Sida 01 · Nationell översikt",
+        title="Riksöversikt",
+        subtitle="Strukturell ekonomisk sårbarhet i Sveriges 290 kommuner",
+        year=str(selected_year),
+    ),
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
+# Section B — KPI row
+# ---------------------------------------------------------------------------
+
+avg_kri = float(year_df["kri_score"].mean())
 high_risk_count = int((year_df["risk_class"] == "Hög").sum())
-median_debt = round(float(year_df["debt_per_capita"].median()), 0)
+median_debt = float(year_df["debt_per_capita"].median())
+pop_change = float(year_df["population_growth"].mean())
 
-# National population change: sum population growth across municipalities weighted equally
-pop_change = round(float(year_df["population_growth"].mean()), 2)
+d1, dir1 = _delta_kri_mean()
+d2, dir2 = _delta_high_risk()
+d3, dir3 = _delta_median_debt_pct()
+d4, dir4 = _delta_pop_mean()
 
 kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
 
 with kpi_col1:
-    render_kpi_card(
-        title=SWEDISH_LABELS["average_kri"],
-        value=avg_kri,
-        delta=_delta("kri_score", "mean"),
-        delta_inverted=True,
-        help_text="Genomsnittligt KRI-poäng för alla 290 kommuner det valda året",
+    st.markdown(
+        render_kpi_card(
+            label=SWEDISH_LABELS["average_kri"],
+            value=_fmt_decimal(avg_kri, 2),
+            unit=" std",
+            delta=d1 or "Saknas",
+            delta_direction=dir1,
+            variant="primary",
+        ),
+        unsafe_allow_html=True,
     )
-
 with kpi_col2:
-    render_kpi_card(
-        title=SWEDISH_LABELS["high_risk_count"],
-        value=high_risk_count,
-        delta=_delta("risk_class", lambda s: (s == "Hög").sum()) if not prev_df.empty else None,
-        delta_inverted=True,
-        help_text="Antal kommuner klassificerade som högrisk (över 75:e percentilen)",
+    st.markdown(
+        render_kpi_card(
+            label=SWEDISH_LABELS["high_risk_count"],
+            value=str(high_risk_count),
+            unit=" / 290",
+            delta=d2 or "Saknas",
+            delta_direction=dir2,
+            variant="danger",
+        ),
+        unsafe_allow_html=True,
     )
-
 with kpi_col3:
-    render_kpi_card(
-        title=SWEDISH_LABELS["median_debt"],
-        value=median_debt,
-        suffix=" kr",
-        delta=_delta("debt_per_capita", "median"),
-        delta_inverted=True,
-        help_text="Medianskuld per capita (långfristiga skulder) bland alla kommuner",
+    st.markdown(
+        render_kpi_card(
+            label=SWEDISH_LABELS["median_debt"],
+            value=_fmt_int_space(median_debt),
+            unit=" kr",
+            delta=d3 or "Saknas",
+            delta_direction=dir3,
+            variant="accent",
+        ),
+        unsafe_allow_html=True,
     )
-
 with kpi_col4:
-    render_kpi_card(
-        title=SWEDISH_LABELS["population_change"],
-        value=pop_change,
-        suffix=" %",
-        delta=_delta("population_growth", "mean"),
-        delta_inverted=False,
-        help_text="Genomsnittlig 5-årig befolkningstillväxt bland alla kommuner",
+    st.markdown(
+        render_kpi_card(
+            label=SWEDISH_LABELS["population_change"],
+            value=f"{'+' if pop_change > 0 else ''}{_fmt_decimal(pop_change, 2)}",
+            unit=" %",
+            delta=d4 or "Saknas",
+            delta_direction=dir4,
+            variant="success",
+        ),
+        unsafe_allow_html=True,
     )
 
-st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# GeoJSON loader (cached)
+# Section C — Map + distribution
 # ---------------------------------------------------------------------------
 
-GEOJSON_LOCAL = PROJECT_ROOT / "data" / "geo" / "kommuner.geojson"
-GEOJSON_URL = (
-    "https://raw.githubusercontent.com/okfse/sweden-geojson/master/swedish_municipalities.geojson"
-)
+scores = filtered_df["kri_score"].astype(float).tolist()
+median_kri = float(filtered_df["kri_score"].median()) if len(filtered_df) else 0.0
+if not scores:
+    scores = year_df["kri_score"].astype(float).tolist()
+    median_kri = float(year_df["kri_score"].median())
 
+map_col, dist_col = st.columns([1.55, 1.0], gap="medium")
 
-@st.cache_data(show_spinner="Laddar kartdata…")
-def load_geojson() -> dict | None:
-    """Try local file first, then remote URL, then return None for fallback."""
-    if GEOJSON_LOCAL.exists():
-        with open(GEOJSON_LOCAL, encoding="utf-8") as fh:
-            return json.load(fh)
-    try:
-        with urllib.request.urlopen(GEOJSON_URL, timeout=10) as resp:
-            data = json.load(resp)
-        GEOJSON_LOCAL.parent.mkdir(parents=True, exist_ok=True)
-        with open(GEOJSON_LOCAL, "w", encoding="utf-8") as fh:
-            json.dump(data, fh)
-        return data
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
-# ROW 3 — Map + Distribution chart
-# ---------------------------------------------------------------------------
-
-map_col, dist_col = st.columns([6, 4], gap="large")
-
-# ---- Map ----------------------------------------------------------------
+_risk_key = "alla" if not selected_risks else "-".join(sorted(selected_risks))
 
 with map_col:
-    st.markdown(
-        f"<h2 style='margin-bottom:0.4rem;'>Riskkarta {selected_year}</h2>",
-        unsafe_allow_html=True,
-    )
-
-    geojson = load_geojson()
-
-    risk_order = {"Hög": 2, "Medel": 1, "Låg": 0}
-    year_df["risk_numeric"] = year_df["risk_class"].map(risk_order)
-
-    if geojson is not None:
-        # Detect the feature property that holds municipality code
-        sample_props = geojson["features"][0]["properties"] if geojson["features"] else {}
-        code_key = next(
-            (k for k in sample_props if "kommunkod" in k.lower() or k.lower() in ("id", "code", "municipalitycode")),
-            list(sample_props.keys())[0] if sample_props else "id",
-        )
-
-        # Build merge key; GeoJSON codes may be strings without leading zeros
-        year_df["geo_code"] = year_df["municipality_code"].astype(str)
-
-        hover_text = (
-            "<b>%{customdata[0]}</b><br>"
-            "KRI Poäng: %{customdata[1]:.3f}<br>"
-            "Rang: %{customdata[2]} av 290<br>"
-            "Riskklass: %{customdata[3]}<br>"
-            "Skuld per capita: %{customdata[4]:,.0f} kr<br>"
-            "Arbetslöshet: %{customdata[5]:.1f} %"
-            "<extra></extra>"
-        )
-
-        fig_map = px.choropleth_mapbox(
-            year_df,
-            geojson=geojson,
-            locations="geo_code",
-            featureidkey=f"properties.{code_key}",
-            color="risk_class",
-            color_discrete_map={
-                "Låg": COLORS["low_risk"],
-                "Medel": COLORS["medium_risk"],
-                "Hög": COLORS["high_risk"],
-            },
-            category_orders={"risk_class": ["Låg", "Medel", "Hög"]},
-            mapbox_style="white-bg",
-            center={"lat": 63.5, "lon": 17.0},
-            zoom=3.8,
-            opacity=0.8,
-            custom_data=[
-                "municipality_name", "kri_score", "rank",
-                "risk_class", "debt_per_capita", "unemployment",
-            ],
-            labels={"risk_class": "Riskklass"},
-        )
-        fig_map.update_traces(hovertemplate=hover_text)
-        fig_map.update_layout(
-            **get_plotly_template()["layout"],
-            height=540,
-            margin={"l": 0, "r": 0, "t": 0, "b": 0},
-            legend=dict(
-                title="Riskklass",
-                orientation="v",
-                x=0.01, y=0.98,
-                bgcolor="rgba(255,255,255,0.85)",
-                bordercolor=COLORS["border"],
-                borderwidth=1,
+    with st.container(border=True):
+        st.markdown(
+            render_card_header(
+                "Geografisk fördelning",
+                "Kommuncentroid färgad efter KRI (290 punkter)",
+                "Punktkarta",
             ),
-            modebar_remove=["logo"],
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(fig_map, use_container_width=True)
-
-    else:
-        # Fallback: scatter plot with approximate municipality centroids
-        # Use a simplified lat/lon mapping for major municipalities
-        st.info(
-            "Kartdata kunde inte laddas. Visar alternativ punktkarta. "
-            "Kontrollera internetanslutningen för att läsa in fullständig karta."
-        )
-
-        # Build a simple scatter fallback coloured by risk class
-        fig_scatter = px.scatter(
-            year_df.sort_values("rank"),
-            x="tax_base_relative",
-            y="kri_score",
-            color="risk_class",
-            color_discrete_map={
-                "Låg": COLORS["low_risk"],
-                "Medel": COLORS["medium_risk"],
-                "Hög": COLORS["high_risk"],
-            },
-            hover_name="municipality_name",
-            hover_data={
-                "kri_score": ":.3f",
-                "rank": True,
-                "debt_per_capita": ":,.0f",
-                "unemployment": ":.1f",
-                "risk_class": True,
-                "tax_base_relative": ":.1f",
-            },
-            labels={
-                "kri_score": "KRI Poäng",
-                "tax_base_relative": "Skattekraft (% av rikssnitt)",
-                "risk_class": "Riskklass",
-                "rank": "Rang",
-                "debt_per_capita": "Skuld per capita (kr)",
-                "unemployment": "Arbetslöshet (%)",
-            },
-            title=f"KRI Poäng mot Skattekraft — {selected_year}",
-        )
-        fig_scatter.update_layout(
-            **get_plotly_template()["layout"],
-            height=500,
-        )
-        st.plotly_chart(fig_scatter, use_container_width=True)
-
-# ---- Distribution histogram ----------------------------------------------
+        render_sweden_map(filtered_df, selected_year, height="440px")
 
 with dist_col:
-    st.markdown(
-        f"<h2 style='margin-bottom:0.4rem;'>Fördelning KRI Poäng</h2>",
-        unsafe_allow_html=True,
-    )
-
-    q25 = float(year_df["kri_score"].quantile(0.25))
-    q75 = float(year_df["kri_score"].quantile(0.75))
-    median_kri = float(year_df["kri_score"].median())
-    kri_min = float(year_df["kri_score"].min())
-    kri_max = float(year_df["kri_score"].max())
-
-    fig_hist = go.Figure()
-
-    # Risk zone background shapes
-    fig_hist.add_shape(
-        type="rect", xref="x", yref="paper",
-        x0=kri_min - 0.1, x1=q25, y0=0, y1=1,
-        fillcolor=COLORS["high_risk"], opacity=0.08, line_width=0,
-    )
-    fig_hist.add_shape(
-        type="rect", xref="x", yref="paper",
-        x0=q25, x1=q75, y0=0, y1=1,
-        fillcolor=COLORS["medium_risk"], opacity=0.08, line_width=0,
-    )
-    fig_hist.add_shape(
-        type="rect", xref="x", yref="paper",
-        x0=q75, x1=kri_max + 0.1, y0=0, y1=1,
-        fillcolor=COLORS["low_risk"], opacity=0.08, line_width=0,
-    )
-
-    # Histogram bars coloured by risk class
-    for rc, colour in [("Hög", COLORS["high_risk"]), ("Medel", COLORS["medium_risk"]), ("Låg", COLORS["low_risk"])]:
-        subset = year_df[year_df["risk_class"] == rc]["kri_score"]
-        fig_hist.add_trace(go.Histogram(
-            x=subset,
-            name=rc,
-            marker_color=colour,
-            opacity=0.85,
-            nbinsx=25,
-            hovertemplate=f"<b>{rc} risk</b><br>KRI Poäng: %{{x:.2f}}<br>Antal: %{{y}}<extra></extra>",
-        ))
-
-    # Median line
-    fig_hist.add_shape(
-        type="line", xref="x", yref="paper",
-        x0=median_kri, x1=median_kri, y0=0, y1=1,
-        line=dict(color=COLORS["primary"], width=2, dash="dash"),
-    )
-    fig_hist.add_annotation(
-        x=median_kri, yref="paper", y=0.97,
-        text=f"Median: {median_kri:.2f}",
-        showarrow=False,
-        font=dict(size=11, color=COLORS["primary"]),
-        bgcolor="rgba(255,255,255,0.8)",
-        bordercolor=COLORS["border"],
-        borderwidth=1,
-        xanchor="left",
-    )
-
-    fig_hist.update_layout(
-        **get_plotly_template()["layout"],
-        barmode="overlay",
-        height=500,
-        xaxis_title="KRI Poäng",
-        yaxis_title="Antal kommuner",
-        legend=dict(
-            title="Riskklass",
-            orientation="v",
-            x=0.98, xanchor="right", y=0.98,
-        ),
-        margin={"l": 50, "r": 20, "t": 30, "b": 50},
-    )
-
-    # Risk zone labels
-    fig_hist.add_annotation(
-        x=(kri_min + q25) / 2, yref="paper", y=0.92,
-        text="Hög", showarrow=False,
-        font=dict(size=11, color=COLORS["high_risk"], weight="bold"),
-    )
-    fig_hist.add_annotation(
-        x=(q25 + q75) / 2, yref="paper", y=0.92,
-        text="Medel", showarrow=False,
-        font=dict(size=11, color=COLORS["medium_risk"], weight="bold"),
-    )
-    fig_hist.add_annotation(
-        x=(q75 + kri_max) / 2, yref="paper", y=0.92,
-        text="Låg", showarrow=False,
-        font=dict(size=11, color=COLORS["low_risk"], weight="bold"),
-    )
-
-    st.plotly_chart(fig_hist, use_container_width=True)
-
-st.markdown("<hr>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown(
+            render_card_header(
+                "KRI-fördelning",
+                "Fördelning över 290 kommuner",
+                "Histogram",
+            ),
+            unsafe_allow_html=True,
+        )
+        hist_opt = build_distribution_histogram(scores, median_kri)
+        st_echarts(
+            options=hist_opt,
+            height="440px",
+            key=f"dist_{selected_year}_{_risk_key}",
+        )
 
 # ---------------------------------------------------------------------------
-# ROW 4 — Top-15 highest and lowest risk tables
+# Section D — Tables
 # ---------------------------------------------------------------------------
 
-def _format_table(df_in: pd.DataFrame) -> pd.DataFrame:
-    """Return a display-ready DataFrame with Swedish column headers."""
-    cols = {
-        "rank": "Rang",
-        "municipality_name": "Kommun",
-        "kri_score": "KRI Poäng",
-        "risk_class": "Riskklass",
-        "debt_per_capita": "Skuld/capita (kr)",
-        "unemployment": "Arbetslöshet (%)",
-    }
-    out = df_in[list(cols.keys())].rename(columns=cols).copy()
-    out["KRI Poäng"] = out["KRI Poäng"].round(3)
-    out["Skuld/capita (kr)"] = out["Skuld/capita (kr)"].apply(lambda v: f"{v:,.0f}".replace(",", "\u202f"))
-    out["Arbetslöshet (%)"] = out["Arbetslöshet (%)"].round(1)
-    out = out.reset_index(drop=True)
-    return out
+top15_high = filtered_df.nsmallest(15, "rank").sort_values("rank")
+top15_low = filtered_df.nlargest(15, "rank").sort_values("rank", ascending=False)
 
 
-top15_high = year_df.nsmallest(15, "rank").sort_values("rank")
-top15_low = year_df.nlargest(15, "rank").sort_values("rank", ascending=False)
+def _risk_pill_class(rc: str) -> str:
+    return {"Hög": "hog", "Medel": "medel", "Låg": "lag"}.get(rc, "medel")
 
-tbl_col1, tbl_col2 = st.columns(2, gap="large")
 
-with tbl_col1:
-    st.markdown(
-        f"<h2>{SWEDISH_LABELS['top_highest_risk']}</h2>",
-        unsafe_allow_html=True,
-    )
-    st.dataframe(
-        _format_table(top15_high),
-        use_container_width=True,
-        hide_index=True,
+def _table_html(df: pd.DataFrame) -> str:
+    rows = []
+    for _, row in df.iterrows():
+        rc = str(row["risk_class"])
+        pill = _risk_pill_class(rc)
+        kri = _fmt_decimal(float(row["kri_score"]), 2)
+        rank = str(int(row["rank"])).zfill(2)
+        code = str(row["municipality_code"]).zfill(4)
+        name = MUNICIPALITIES.get(code, str(row.get("municipality_name", "")))
+        rows.append(
+            f"<tr><td class='rank-cell'>{rank}</td>"
+            f"<td class='kommun-name'>{name}</td>"
+            f"<td class='num'>{kri}</td>"
+            f"<td><span class='risk-pill {pill}'>{rc}</span></td></tr>"
+        )
+    return (
+        "<table class='kri-table'><thead><tr>"
+        "<th>Rang</th><th>Kommun</th><th class='num'>KRI Poäng</th><th>Riskklass</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table>"
     )
 
-with tbl_col2:
-    st.markdown(
-        f"<h2>{SWEDISH_LABELS['top_lowest_risk']}</h2>",
-        unsafe_allow_html=True,
-    )
-    st.dataframe(
-        _format_table(top15_low),
-        use_container_width=True,
-        hide_index=True,
-    )
+
+tbl1, tbl2 = st.columns(2, gap="medium")
+
+with tbl1:
+    with st.container(border=True):
+        st.markdown(
+            render_card_header(
+                SWEDISH_LABELS["top_highest_risk"],
+                f"Mest sårbara kommuner {selected_year}",
+                "Rankning",
+            ),
+            unsafe_allow_html=True,
+        )
+        st.markdown(_table_html(top15_high), unsafe_allow_html=True)
+
+with tbl2:
+    with st.container(border=True):
+        st.markdown(
+            render_card_header(
+                SWEDISH_LABELS["top_lowest_risk"],
+                f"Mest robusta kommuner {selected_year}",
+                "Rankning",
+            ),
+            unsafe_allow_html=True,
+        )
+        st.markdown(_table_html(top15_low), unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Footer note
+# Section E — Footer
 # ---------------------------------------------------------------------------
+
 st.markdown(
-    f"<p style='font-size:12px; color:{COLORS['text_secondary']}; margin-top:1rem;'>"
-    f"{SWEDISH_LABELS['data_source']} &nbsp;|&nbsp; Period: {START_YEAR}–{END_YEAR} &nbsp;|&nbsp; "
-    f"Riskklass baseras på 25:e och 75:e percentilen per år."
-    f"</p>",
+    '<div class="footer-note">'
+    "<div>Källa: SCB Statistikdatabasen · Arbetsförmedlingen · Kolada</div>"
+    "<div><code>KRI v1.0</code> · Metod: viktad z-poäng kompositindex · N=290</div>"
+    "</div>",
     unsafe_allow_html=True,
 )

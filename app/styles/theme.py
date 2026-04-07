@@ -1,317 +1,934 @@
 """
-app/styles/theme.py
--------------------
-Central design system for the KRI Dashboard.
+Central design system for the KRI Dashboard (Streamlit + ECharts).
 
-All user-facing strings are in Swedish.
+All user-facing strings passed into render helpers must be in Swedish.
 All code identifiers, comments, and docstrings are in English.
 """
 
 from __future__ import annotations
 
+import copy
+from typing import Any, Literal
+
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
+
+from src.config import COLORS
 
 # ---------------------------------------------------------------------------
-# 1. Color Palette (from PRD section 5)
+# Theme application
 # ---------------------------------------------------------------------------
 
-COLORS: dict[str, str] = {
-    "primary": "#1B2A4A",        # Dark blue — headings, sidebar
-    "secondary": "#4A6FA5",      # Steel blue — secondary elements
-    "accent": "#C4A35A",         # Gold — highlights, accents
-    "low_risk": "#2E7D5B",       # Green
-    "medium_risk": "#D4A03C",    # Amber
-    "high_risk": "#B94A48",      # Red
-    "background": "#F7F8FA",     # Page background
-    "text_primary": "#1A1A2E",   # Main body text
-    "text_secondary": "#6B7280", # Muted / secondary text
-    "grid_lines": "#E5E7EB",     # Chart gridlines
-    "white": "#FFFFFF",
-    "border": "#D1D5DB",
-}
-
-# ---------------------------------------------------------------------------
-# 2. apply_streamlit_theme()
-# ---------------------------------------------------------------------------
 
 def apply_streamlit_theme() -> None:
-    """Apply global Streamlit page config and custom CSS.
+    """Set page config and inject banking-style CSS (fonts, sidebar, layout)."""
+    try:
+        st.set_page_config(
+            page_title="KRI Kontrollpanel",
+            page_icon="📊",
+            layout="wide",
+            initial_sidebar_state="expanded",
+            menu_items={
+                "Get Help": None,
+                "Report a bug": None,
+                "About": "**KRI Kontrollpanel**. Kommunal finansiell riskindikator.\n\nKälla: SCB, Arbetsförmedlingen",
+            },
+        )
+    except StreamlitAPIException:
+        # Already set on first page in this session (e.g. home → multipage navigation).
+        pass
 
-    Must be called once at the top of every page file, before any other
-    Streamlit call.  Injects Source Sans Pro from Google Fonts, overrides
-    default Streamlit colours and component styles.
-
-    All text visible to the user (labels, placeholders, aria text) is in
-    Swedish.
-    """
-    st.set_page_config(
-        page_title="KRI Kontrollpanel",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        menu_items={
-            "Get Help": None,
-            "Report a bug": None,
-            "About": "**KRI Kontrollpanel** — Kommunal Finansiell Riskindikator\n\nKälla: SCB, Arbetsförmedlingen",
-        },
-    )
+    p = COLORS["primary"]
+    bg = COLORS["bg"]
+    accent = COLORS["accent"]
+    border = COLORS["border"]
+    text_pri = COLORS["text_primary"]
+    text_sec = COLORS["text_secondary"]
+    text_ter = COLORS["text_tertiary"]
+    card = COLORS["card_bg"]
+    hover = COLORS["hover"]
+    low = COLORS["low_risk"]
+    high = COLORS["high_risk"]
 
     css = f"""
-    <!-- Google Fonts: Source Sans Pro -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <style>
-    /* ── Global reset & font ─────────────────────────────────────── */
-    html, body, [class*="css"] {{
-        font-family: 'Source Sans 3', 'Source Sans Pro', sans-serif !important;
-        color: {COLORS['text_primary']};
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    /* Hide chrome but keep sidebar expand control usable (descendant may stay visible). */
+    header[data-testid="stHeader"] {{visibility: hidden; height: 0; overflow: visible;}}
+    [data-testid="collapsedControl"] {{
+        visibility: visible !important;
+        position: fixed !important;
+        top: 0.65rem !important;
+        left: 0.65rem !important;
+        z-index: 1002 !important;
     }}
 
-    /* ── Page background ─────────────────────────────────────────── */
+    html, body {{
+        font-family: 'Source Sans Pro', -apple-system, sans-serif !important;
+    }}
+
+    /* Main content only — never force dark body text on [class*="css"] or it paints the sidebar unreadable */
+    [data-testid="stMain"],
+    [data-testid="stMain"] .block-container {{
+        color: {text_pri};
+    }}
+
     .stApp {{
-        background-color: {COLORS['background']};
+        background-color: {bg};
     }}
 
-    /* ── Main content area ───────────────────────────────────────── */
     .block-container {{
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1400px;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 2.5rem !important;
+        padding-right: 2.5rem !important;
+        max-width: 1480px !important;
     }}
 
-    /* ── Headings ────────────────────────────────────────────────── */
-    h1 {{
-        font-family: 'Source Sans 3', sans-serif !important;
-        font-weight: 700;
-        font-size: 28px;
-        color: {COLORS['primary']} !important;
-        border-bottom: 3px solid {COLORS['accent']};
-        padding-bottom: 0.4rem;
-        margin-bottom: 0.8rem;
-    }}
-
-    h2 {{
-        font-family: 'Source Sans 3', sans-serif !important;
-        font-weight: 600;
-        font-size: 22px;
-        color: {COLORS['primary']} !important;
-        margin-bottom: 0.6rem;
-    }}
-
-    h3 {{
-        font-family: 'Source Sans 3', sans-serif !important;
-        font-weight: 600;
-        font-size: 18px;
-        color: {COLORS['primary']} !important;
-    }}
-
-    /* ── Sidebar ─────────────────────────────────────────────────── */
     [data-testid="stSidebar"] {{
-        background-color: {COLORS['primary']};
+        background-color: {p};
+        min-width: 260px !important;
+        width: 260px !important;
+        color: #E8ECF4 !important;
+        border-right: 1px solid {border};
     }}
 
-    [data-testid="stSidebar"] * {{
+    /* Fallback if config.toml client.showSidebarNavigation is not applied */
+    [data-testid="stSidebarHeader"] {{
+        display: none !important;
+    }}
+
+    [data-testid="stSidebarContent"] {{
+        color: #E8ECF4 !important;
+    }}
+
+    /* kri_dashboard_mockup.html: .sidebar padding 28px 22px */
+    [data-testid="stSidebar"] .block-container {{
+        padding-top: 28px !important;
+        padding-left: 22px !important;
+        padding-right: 22px !important;
+        padding-bottom: 1.5rem !important;
+    }}
+
+    [data-testid="stSidebar"] label {{
+        color: rgba(255,255,255,0.5) !important;
+        font-size: 10.5px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+        font-weight: 600 !important;
+    }}
+
+    [data-testid="stSidebar"] .stSlider {{
+        color: #E8ECF4 !important;
+    }}
+    /* White select box: must stay dark text */
+    [data-testid="stSidebar"] [data-baseweb="select"] > div {{
+        color: {text_pri} !important;
+    }}
+
+    [data-testid="stSidebarNav"] {{
+        padding-top: 0.5rem;
+    }}
+
+    [data-testid="stSidebarNav"] ul {{
+        padding-left: 0 !important;
+    }}
+
+    [data-testid="stSidebarNav"] li > a {{
+        color: rgba(255,255,255,0.75) !important;
+        border-radius: 4px;
+        padding: 9px 12px !important;
+        border-left: 2px solid transparent !important;
+    }}
+
+    [data-testid="stSidebarNav"] li > a:hover {{
+        background: rgba(255,255,255,0.05) !important;
         color: #FFFFFF !important;
     }}
 
-    [data-testid="stSidebar"] .stSelectbox label,
-    [data-testid="stSidebar"] .stSlider label,
-    [data-testid="stSidebar"] .stMultiSelect label,
-    [data-testid="stSidebar"] .stRadio label {{
-        color: #E2E8F0 !important;
+    [data-testid="stSidebarNav"] li > a[aria-current="page"] {{
+        background: rgba(196,163,90,0.12) !important;
+        color: #FFFFFF !important;
+        border-left: 2px solid {accent} !important;
+    }}
+
+    /* Sidlänkar: Streamlit sätter mörk text på mörk bakgrund — tvinga ljus text + spann. */
+    [data-testid="stSidebarContent"] a[href] {{
+        text-decoration: none !important;
+        color: rgba(255, 255, 255, 0.92) !important;
+        font-size: 13.5px !important;
+        line-height: 1.45 !important;
+        font-family: 'Source Sans Pro', -apple-system, sans-serif !important;
+        background: transparent !important;
+        background-color: transparent !important;
+    }}
+    [data-testid="stSidebarContent"] a[href] span {{
+        color: rgba(255, 255, 255, 0.92) !important;
+    }}
+    [data-testid="stSidebarContent"] a[href]:hover,
+    [data-testid="stSidebarContent"] a[href]:hover span {{
+        color: #FFFFFF !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
+    }}
+    [data-testid="stSidebarContent"] a[href][aria-current="page"],
+    [data-testid="stSidebarContent"] a[href][aria-current="page"] span {{
+        color: #FFFFFF !important;
+        background-color: rgba(196, 163, 90, 0.22) !important;
+    }}
+
+    [data-testid="stSidebar"] [data-testid="stCaption"],
+    [data-testid="stSidebar"] .stCaption {{
+        color: rgba(255, 255, 255, 0.72) !important;
+    }}
+
+    .stApp > div > div > div > div {{
+        padding-top: 0.5rem;
+    }}
+
+    [data-testid="stVerticalBlock"] > div {{
+        gap: 0.5rem;
+    }}
+
+    /* KPI cards */
+    .kpi-card {{
+        background: {card};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 20px 22px;
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+    }}
+    .kpi-card::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: {p};
+    }}
+    .kpi-card.kpi-primary::before {{ background: {p}; }}
+    .kpi-card.kpi-accent::before {{ background: {accent}; }}
+    .kpi-card.kpi-danger::before {{ background: {high}; }}
+    .kpi-card.kpi-success::before {{ background: {low}; }}
+
+    .kpi-label {{
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: {text_sec};
+        margin-bottom: 10px;
         font-weight: 600;
-        font-size: 13px;
+    }}
+    .kpi-value {{
+        font-size: 32px;
+        font-weight: 700;
+        color: {p};
+        letter-spacing: -0.8px;
+        line-height: 1.1;
+        font-variant-numeric: tabular-nums;
+    }}
+    .kpi-unit {{
+        font-size: 14px;
+        font-weight: 400;
+        color: {text_sec};
+        margin-left: 4px;
+    }}
+    .kpi-delta {{
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        margin-top: 8px;
+        font-family: 'IBM Plex Mono', monospace;
+    }}
+    .delta-up {{ color: {high}; }}
+    .delta-down {{ color: {low}; }}
+    .delta-flat {{ color: {text_ter}; }}
+    .kpi-delta.delta-up::before {{ content: '▲'; font-size: 10px; }}
+    .kpi-delta.delta-down::before {{ content: '▼'; font-size: 10px; }}
+    .kpi-delta.delta-flat::before {{ content: '●'; font-size: 10px; }}
+
+    .mono, .num {{ font-family: 'IBM Plex Mono', monospace; }}
+
+    /* Cards */
+    .card {{
+        background: {card};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 22px 24px;
+        margin-bottom: 0;
+    }}
+    .card-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid {border};
+    }}
+    .card-title {{
+        font-size: 15px;
+        font-weight: 700;
+        color: {p};
+        letter-spacing: -0.2px;
+    }}
+    .card-subtitle {{
+        font-size: 11.5px;
+        color: {text_sec};
+        margin-top: 2px;
+    }}
+    .card-tag {{
+        font-size: 9.5px;
+        font-family: 'IBM Plex Mono', monospace;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 1px;
+        padding: 4px 8px;
+        background: {bg};
+        color: {text_sec};
+        border-radius: 2px;
     }}
 
-    [data-testid="stSidebar"] [data-testid="stSidebarNav"] {{
-        border-bottom: 1px solid rgba(255,255,255,0.15);
-        padding-bottom: 1rem;
-        margin-bottom: 1rem;
+    /* Page header */
+    .page-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid {border};
     }}
-
-    /* Sidebar nav links */
-    [data-testid="stSidebar"] a {{
-        color: #CBD5E1 !important;
-        text-decoration: none;
-    }}
-
-    [data-testid="stSidebar"] a:hover {{
-        color: {COLORS['accent']} !important;
-    }}
-
-    /* ── Metric / KPI built-in widget ────────────────────────────── */
-    [data-testid="stMetric"] {{
-        background-color: {COLORS['white']};
-        border: 1px solid {COLORS['border']};
-        border-radius: 10px;
-        padding: 1.1rem 1.4rem;
-        box-shadow: 0 1px 4px rgba(27,42,74,0.07);
-    }}
-
-    [data-testid="stMetricLabel"] {{
-        font-size: 13px !important;
-        font-weight: 600 !important;
-        color: {COLORS['text_secondary']} !important;
+    .eyebrow {{
+        font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 1.5px;
+        color: {accent};
+        font-weight: 600;
+        margin-bottom: 6px;
+    }}
+    .page-title {{
+        font-size: 28px;
+        font-weight: 700;
+        color: {p};
+        letter-spacing: -0.5px;
+        margin: 0 0 4px 0;
+    }}
+    .page-sub {{
+        font-size: 13.5px;
+        color: {text_sec};
+    }}
+    .header-meta {{
+        text-align: right;
+        font-size: 11px;
+        color: {text_ter};
+        font-family: 'IBM Plex Mono', monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }}
+    .year-display {{
+        font-size: 32px;
+        color: {p};
+        font-family: 'Source Sans Pro', sans-serif;
+        font-weight: 300;
+        letter-spacing: -1px;
+        line-height: 1;
+        margin-bottom: 4px;
     }}
 
-    [data-testid="stMetricValue"] {{
-        font-size: 34px !important;
-        font-weight: 700 !important;
-        color: {COLORS['primary']} !important;
+    /* Sidebar brand */
+    .sidebar-brand {{
+        padding-bottom: 24px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 24px;
+    }}
+    .brand-mark {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: {accent};
+        font-weight: 600;
+    }}
+    .brand-mark::before {{
+        content: '';
+        display: block;
+        width: 4px;
+        height: 16px;
+        background: {accent};
+    }}
+    .brand-title {{
+        font-size: 17px;
+        font-weight: 700;
+        margin-top: 10px;
+        color: #FFFFFF;
+        letter-spacing: -0.2px;
+    }}
+    .brand-sub {{
+        font-size: 11px;
+        color: rgba(255,255,255,0.55);
+        margin-top: 2px;
+    }}
+    .nav-section-label,
+    .nav-section {{
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: rgba(255,255,255,0.4);
+        margin-bottom: 12px;
+    }}
+    .control-label {{
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: rgba(255,255,255,0.5);
+        margin-bottom: 10px;
+        margin-top: 8px;
+    }}
+    .sidebar-footer {{
+        font-size: 10px;
+        color: rgba(255,255,255,0.35);
+        padding-top: 16px;
+        margin-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        line-height: 1.5;
     }}
 
-    [data-testid="stMetricDelta"] svg {{
-        width: 14px;
-        height: 14px;
-    }}
-
-    /* ── DataFrames / Tables (zebra striping) ────────────────────── */
-    [data-testid="stDataFrame"] table,
-    .stTable table {{
+    /* Tables (HTML) */
+    .kri-table {{
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px;
+        font-size: 13px;
+    }}
+    .kri-table thead th {{
+        text-align: left;
+        padding: 10px 12px;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: {text_sec};
+        border-bottom: 1.5px solid {p};
+        font-weight: 600;
+    }}
+    .kri-table thead th.num {{ text-align: right; }}
+    .kri-table tbody td {{
+        padding: 11px 12px;
+        border-bottom: 1px solid {border};
+        color: {text_pri};
+    }}
+    .kri-table tbody td.num {{
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12.5px;
+    }}
+    .kri-table tbody tr:hover {{ background: {hover}; }}
+    .rank-cell {{
+        font-family: 'IBM Plex Mono', monospace;
+        color: {text_ter};
+        font-size: 11.5px;
+        width: 36px;
+    }}
+    .kommun-name {{ font-weight: 600; color: {p}; }}
+    .risk-pill {{
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 2px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+    }}
+    .risk-pill.hog {{ background: rgba(185,74,72,0.12); color: {high}; border: 1px solid rgba(185,74,72,0.3); }}
+    .risk-pill.medel {{ background: rgba(212,160,60,0.12); color: #8B6914; border: 1px solid rgba(212,160,60,0.3); }}
+    .risk-pill.lag {{ background: rgba(46,125,91,0.12); color: {low}; border: 1px solid rgba(46,125,91,0.3); }}
+
+    .footer-note {{
+        margin-top: 28px;
+        padding-top: 16px;
+        border-top: 1px solid {border};
+        font-size: 11px;
+        color: {text_ter};
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+    }}
+    .footer-note code {{
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10.5px;
+        background: {bg};
+        padding: 2px 6px;
+        border-radius: 2px;
+        color: {text_sec};
     }}
 
-    [data-testid="stDataFrame"] th,
-    .stTable th {{
-        background-color: {COLORS['primary']};
+    /* ── Sidopanel: år-chips + riskklass-piller ─────────────── */
+    /* Bred regel — träffar alla knappar i sidopanelen oberoende av stPills-hierarki.
+       button * fångar text i p/span/div oavsett vad Streamlit renderar inuti knappen. */
+    [data-testid="stSidebar"] button {{
+        background-color: rgba(255,255,255,0.10) !important;
+        border: 1px solid rgba(255,255,255,0.25) !important;
+        border-radius: 4px !important;
+        padding: 4px 9px !important;
+        font-family: 'IBM Plex Mono', monospace !important;
+        font-size: 11px !important;
+        font-weight: 500 !important;
+        min-height: auto !important;
+        height: auto !important;
+        line-height: 1.4 !important;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+    }}
+    [data-testid="stSidebar"] button,
+    [data-testid="stSidebar"] button * {{
+        color: #F3F4F6 !important;
+    }}
+    [data-testid="stSidebar"] button:hover {{
+        background-color: rgba(255,255,255,0.18) !important;
+        border-color: rgba(255,255,255,0.40) !important;
+    }}
+    [data-testid="stSidebar"] button:hover,
+    [data-testid="stSidebar"] button:hover * {{
         color: #FFFFFF !important;
+    }}
+    /* Vald chip — guld bakgrund, mörk marin text */
+    [data-testid="stSidebar"] button[aria-pressed="true"] {{
+        background-color: {accent} !important;
+        border-color: {accent} !important;
+        font-weight: 600 !important;
+    }}
+    [data-testid="stSidebar"] button[aria-pressed="true"],
+    [data-testid="stSidebar"] button[aria-pressed="true"] * {{
+        color: {p} !important;
+    }}
+
+    /* ── Riskklass: punkt-legend ─────────────────────────────── */
+    .sidebar-control {{
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+    }}
+    .riskklass-legend {{ margin-top: 8px; }}
+    .riskklass-rad {{
+        display: flex;
+        align-items: center;
+        font-size: 12.5px;
+        color: rgba(255,255,255,0.75);
+        margin-bottom: 8px;
+        line-height: 1;
+    }}
+    .riskklass-punkt {{
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        flex-shrink: 0;
+    }}
+
+    /* ── Landing page (.lp-*) — scoped to home; tokens from COLORS ───────── */
+    .lp-hero {{
+        background: linear-gradient(145deg, {p} 0%, {COLORS["primary_light"]} 55%, #152a52 100%);
+        border-radius: 4px;
+        padding: 22px 28px 20px;
+        margin-bottom: 0;
+        border: 1px solid rgba(196,163,90,0.25);
+    }}
+    .lp-hero-inner {{
+        max-width: 720px;
+        margin: 0 auto;
+        text-align: left;
+    }}
+    .lp-eyebrow {{
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: {accent};
         font-weight: 600;
-        padding: 10px 14px;
+        margin-bottom: 6px;
+    }}
+    /* Main sets color on stMain — hero must override for h1 + text */
+    [data-testid="stMain"] .lp-hero h1.lp-headline,
+    .lp-hero h1.lp-headline,
+    .lp-hero .lp-headline {{
+        font-size: clamp(24px, 3.6vw, 36px);
+        font-weight: 700;
+        color: #FFFFFF !important;
+        letter-spacing: -0.5px;
+        line-height: 1.2;
+        margin: 0 0 10px 0;
+        border: none !important;
+        padding: 0 !important;
+    }}
+    .lp-hero-lead {{
+        font-size: 15px;
+        color: rgba(255,255,255,0.92);
+        line-height: 1.5;
+        margin: 0;
+        max-width: 38rem;
+        text-align: left;
+    }}
+    .lp-hero-cta {{
+        font-size: 13px;
+        color: rgba(255,255,255,0.78);
+        line-height: 1.45;
+        margin: 10px 0 0 0;
+        max-width: 38rem;
         text-align: left;
     }}
 
-    [data-testid="stDataFrame"] tr:nth-child(even),
-    .stTable tr:nth-child(even) {{
-        background-color: #F0F4F8;
+    .lp-stat-strip {{
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        background: {card};
+        border: 1px solid {border};
+        border-top: 3px solid {accent};
+        border-radius: 0 0 4px 4px;
+        margin-top: -1px;
+        margin-bottom: 28px;
+        overflow: hidden;
     }}
-
-    [data-testid="stDataFrame"] tr:hover,
-    .stTable tr:hover {{
-        background-color: #E8EEF7;
+    .lp-stat-cell {{
+        padding: 18px 20px;
+        border-right: 1px solid {border};
     }}
-
-    [data-testid="stDataFrame"] td,
-    .stTable td {{
-        padding: 9px 14px;
-        border-bottom: 1px solid {COLORS['grid_lines']};
-        color: {COLORS['text_primary']};
-    }}
-
-    /* ── Selectbox / Dropdowns ───────────────────────────────────── */
-    .stSelectbox > div > div {{
-        border-radius: 6px;
-        border-color: {COLORS['border']};
-    }}
-
-    /* ── Slider ──────────────────────────────────────────────────── */
-    .stSlider [data-baseweb="slider"] {{
-        padding: 0 4px;
-    }}
-
-    /* ── Buttons ─────────────────────────────────────────────────── */
-    .stButton > button {{
-        background-color: {COLORS['primary']};
-        color: #FFFFFF;
-        border: none;
-        border-radius: 6px;
-        font-weight: 600;
-        padding: 0.5rem 1.2rem;
-        transition: background-color 0.2s ease;
-    }}
-
-    .stButton > button:hover {{
-        background-color: {COLORS['secondary']};
-        color: #FFFFFF;
-    }}
-
-    .stDownloadButton > button {{
-        background-color: {COLORS['accent']};
-        color: {COLORS['primary']};
-        border: none;
-        border-radius: 6px;
-        font-weight: 700;
-    }}
-
-    /* ── Expander ────────────────────────────────────────────────── */
-    [data-testid="stExpander"] {{
-        border: 1px solid {COLORS['border']};
-        border-radius: 8px;
-        background-color: {COLORS['white']};
-    }}
-
-    /* ── Divider ─────────────────────────────────────────────────── */
-    hr {{
-        border-color: {COLORS['grid_lines']};
-        margin: 1.5rem 0;
-    }}
-
-    /* ── Risk badge labels used in custom HTML ───────────────────── */
-    .risk-badge {{
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-    }}
-
-    .risk-badge-lag   {{ background-color: #D1FAE5; color: {COLORS['low_risk']}; }}
-    .risk-badge-medel {{ background-color: #FEF3C7; color: #92400E; }}
-    .risk-badge-hog   {{ background-color: #FEE2E2; color: {COLORS['high_risk']}; }}
-
-    /* ── KPI card custom (used by render_kpi_card) ───────────────── */
-    .kpi-card {{
-        background-color: {COLORS['white']};
-        border: 1px solid {COLORS['border']};
-        border-radius: 10px;
-        padding: 1.1rem 1.4rem;
-        box-shadow: 0 1px 4px rgba(27,42,74,0.07);
-        height: 100%;
-    }}
-
-    .kpi-card-title {{
-        font-size: 12px;
-        font-weight: 600;
-        color: {COLORS['text_secondary']};
+    .lp-stat-cell:last-child {{ border-right: none; }}
+    .lp-stat-label {{
+        font-size: 10.5px;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 1.1px;
+        color: {text_sec};
+        font-weight: 600;
         margin-bottom: 6px;
     }}
-
-    .kpi-card-value {{
-        font-size: 34px;
-        font-weight: 700;
-        color: {COLORS['primary']};
+    .lp-stat-value {{
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 28px;
+        font-weight: 600;
+        color: {p};
         line-height: 1.1;
+        letter-spacing: -0.5px;
+    }}
+    .lp-stat-unit {{
+        font-size: 13px;
+        font-weight: 400;
+        color: {text_sec};
+        margin-left: 4px;
     }}
 
-    .kpi-card-delta-pos {{
-        font-size: 13px;
-        color: {COLORS['low_risk']};
+    .lp-section {{
+        margin-bottom: 22px;
+    }}
+    .lp-section-title {{
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        color: {accent};
         font-weight: 600;
-        margin-top: 4px;
+        margin-bottom: 10px;
+    }}
+    .lp-card-light {{
+        background: {card};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 22px 24px;
+    }}
+    .lp-body {{
+        font-size: 15px;
+        color: {text_pri};
+        line-height: 1.65;
+        margin: 0;
+    }}
+    .lp-body-secondary {{
+        font-size: 14px;
+        color: {text_sec};
+        line-height: 1.6;
+        margin: 10px 0 0 0;
+    }}
+    .lp-explain-card .lp-body,
+    .lp-explain-card .lp-body-secondary {{
+        max-width: min(100%, 68ch);
+        text-align: left;
     }}
 
-    .kpi-card-delta-neg {{
-        font-size: 13px;
-        color: {COLORS['high_risk']};
+    .lp-card-light.lp-visual {{
+        padding: 12px 14px 10px !important;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }}
+    .lp-visual {{
+        margin-top: 10px;
+    }}
+    .lp-weight-list {{
+        margin-bottom: 10px;
+    }}
+    .lp-weight-row {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 4px;
+        font-size: 12.5px;
+    }}
+    .lp-weight-name {{
+        flex: 0 0 min(42%, 200px);
+        color: {text_pri};
         font-weight: 600;
-        margin-top: 4px;
+    }}
+    .lp-weight-bar-wrap {{
+        flex: 1;
+        height: 6px;
+        background: {bg};
+        border-radius: 2px;
+        overflow: hidden;
+        border: 1px solid {border};
+    }}
+    .lp-weight-bar {{
+        height: 100%;
+        background: {COLORS["secondary"]};
+        border-radius: 1px;
+    }}
+    .lp-weight-pct {{
+        flex: 0 0 44px;
+        text-align: right;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        color: {text_sec};
+    }}
+    /* Flow diagram: max width calc(33rem * 1.3) (30% larger than prior 33rem); centered. */
+    .lp-flow-svg-wrap {{
+        max-width: min(100%, calc(33rem * 1.3));
+        width: min(100%, calc(33rem * 1.3));
+        align-self: center;
+        margin: 8px auto 0;
+        overflow: visible;
+    }}
+    .lp-flow-svg {{
+        display: block;
+        width: 100%;
+        height: auto;
+        margin: 0 auto;
     }}
 
-    .kpi-card-delta-neu {{
-        font-size: 13px;
-        color: {COLORS['text_secondary']};
-        font-weight: 600;
+    .lp-steps {{
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 0;
         margin-top: 4px;
+    }}
+    .lp-step {{
+        flex: 1 1 0;
+        min-width: 0;
+        background: {card};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 18px 18px 20px;
+        position: relative;
+        border-left: 3px solid {accent};
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }}
+    .lp-step-connector {{
+        flex: 0 0 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: {accent};
+        align-self: center;
+        opacity: 0.92;
+    }}
+    .lp-step-arrow-svg {{
+        width: 28px;
+        height: 16px;
+        flex-shrink: 0;
+        display: block;
+    }}
+    .lp-step:hover {{
+        box-shadow: 0 4px 14px rgba(11,31,63,0.07);
+        border-color: rgba(196,163,90,0.35);
+    }}
+    .lp-step-num {{
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        color: {accent};
+        font-weight: 600;
+        margin-bottom: 8px;
+    }}
+    .lp-step-title {{
+        font-size: 14px;
+        font-weight: 700;
+        color: {p};
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }}
+    .lp-step svg {{
+        flex-shrink: 0;
+        color: {p};
+    }}
+    .lp-step-text {{
+        font-size: 13px;
+        color: {text_sec};
+        line-height: 1.55;
+        margin: 0;
+    }}
+
+    .lp-nav-section-title {{
+        font-size: 15px;
+        font-weight: 700;
+        color: {p};
+        margin: 28px 0 14px 0;
+        padding-bottom: 10px;
+        border-bottom: 1px solid {border};
+    }}
+    .lp-nav-section-title-in-panel {{
+        margin-top: 0;
+        margin-bottom: 12px;
+    }}
+    .lp-nav-grid {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 8px;
+    }}
+    .lp-nav-card {{
+        background: {card};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 20px 20px 18px;
+        border-left: 3px solid {accent};
+        min-height: 120px;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }}
+    .lp-nav-card:hover {{
+        box-shadow: 0 4px 16px rgba(11,31,63,0.08);
+        border-color: rgba(196,163,90,0.4);
+    }}
+    .lp-nav-card-head {{
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }}
+    .lp-nav-tag {{
+        font-size: 9.5px;
+        font-family: 'IBM Plex Mono', monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 4px 8px;
+        background: {bg};
+        color: {text_sec};
+        border-radius: 2px;
+    }}
+    .lp-nav-title {{
+        font-size: 15px;
+        font-weight: 700;
+        color: {p};
+        margin: 0 0 8px 0;
+        letter-spacing: -0.2px;
+    }}
+    .lp-nav-desc {{
+        font-size: 13px;
+        color: {text_sec};
+        line-height: 1.5;
+        margin: 0;
+    }}
+    .lp-nav-icon {{
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        background: rgba(11,31,63,0.06);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid {border};
+    }}
+    .lp-nav-icon svg {{
+        width: 22px;
+        height: 22px;
+        stroke: {p};
+        fill: none;
+        stroke-width: 1.6;
+    }}
+
+    .lp-cred {{
+        margin-top: 28px;
+        padding: 16px 20px 18px;
+        border: 1px solid {border};
+        border-radius: 4px;
+        background: {card};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 12px;
+        color: {text_ter};
+        text-align: center;
+    }}
+    .lp-cred-pills {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+    }}
+    .lp-cred-pill {{
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        padding: 4px 10px;
+        border-radius: 2px;
+        background: {bg};
+        border: 1px solid {border};
+        color: {text_sec};
+        font-weight: 600;
+    }}
+    .lp-cred-meta {{
+        font-family: 'Source Sans Pro', sans-serif;
+        font-size: 11px;
+        color: {text_sec};
+        line-height: 1.4;
+        text-align: center;
+        max-width: 100%;
+    }}
+
+    @media (max-width: 900px) {{
+        .lp-stat-strip {{ grid-template-columns: repeat(2, 1fr); }}
+        .lp-stat-cell:nth-child(2) {{ border-right: none; }}
+        .lp-steps {{ flex-direction: column; }}
+        .lp-step-connector {{
+            flex: 0 0 auto;
+            width: 100%;
+            height: 28px;
+            padding: 4px 0;
+        }}
+        .lp-step-arrow-svg {{
+            transform: rotate(90deg);
+            width: 22px;
+            height: 28px;
+        }}
+        .lp-nav-grid {{ grid-template-columns: 1fr; }}
+    }}
+    @media (max-width: 520px) {{
+        .lp-stat-strip {{ grid-template-columns: 1fr; }}
+        .lp-stat-cell {{ border-right: none; border-bottom: 1px solid {border}; }}
+        .lp-stat-cell:last-child {{ border-bottom: none; }}
+        .lp-hero {{ padding: 18px 16px 16px; }}
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+        .lp-step, .lp-nav-card {{ transition: none !important; }}
+        .lp-step-arrow-svg {{ transition: none !important; }}
     }}
     </style>
     """
@@ -319,96 +936,275 @@ def apply_streamlit_theme() -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# 3. get_plotly_template()
-# ---------------------------------------------------------------------------
-
-def get_plotly_template() -> dict:
-    """Return a Plotly layout template dict matching the KRI design system.
-
-    Usage::
-
-        import plotly.graph_objects as go
-        fig = go.Figure(layout=go.Layout(**get_plotly_template()["layout"]))
-
-    Returns a dict with a ``"layout"`` key ready to spread into go.Layout /
-    update_layout calls.  Does NOT return a named Plotly template string —
-    use ``fig.update_layout(**get_plotly_template()["layout"])`` directly.
-    """
-    font_family = "Source Sans 3, Source Sans Pro, sans-serif"
-
+def get_tooltip_style() -> dict[str, Any]:
+    """Return consistent ECharts tooltip styling (dark navy, gold border)."""
     return {
-        "layout": {
-            "font": {
-                "family": font_family,
-                "color": COLORS["text_primary"],
-                "size": 13,
-            },
-            "title": {
-                "font": {
-                    "family": font_family,
-                    "color": COLORS["primary"],
-                    "size": 16,
-                    "weight": "bold",
-                },
-                "x": 0.0,
-                "xanchor": "left",
-            },
-            "paper_bgcolor": COLORS["white"],
-            "plot_bgcolor": COLORS["white"],
-            "colorway": [
-                COLORS["primary"],
-                COLORS["secondary"],
-                COLORS["accent"],
-                COLORS["low_risk"],
-                COLORS["medium_risk"],
-                COLORS["high_risk"],
-            ],
-            "xaxis": {
-                "gridcolor": COLORS["grid_lines"],
-                "linecolor": COLORS["grid_lines"],
-                "tickfont": {"color": COLORS["text_secondary"], "size": 12},
-                "title_font": {"color": COLORS["text_secondary"], "size": 13},
-                "zeroline": False,
-            },
-            "yaxis": {
-                "gridcolor": COLORS["grid_lines"],
-                "linecolor": COLORS["grid_lines"],
-                "tickfont": {"color": COLORS["text_secondary"], "size": 12},
-                "title_font": {"color": COLORS["text_secondary"], "size": 13},
-                "zeroline": False,
-            },
-            "legend": {
-                "bgcolor": "rgba(0,0,0,0)",
-                "bordercolor": COLORS["grid_lines"],
-                "borderwidth": 1,
-                "font": {"color": COLORS["text_primary"], "size": 12},
-            },
-            "hoverlabel": {
-                "bgcolor": COLORS["white"],
-                "bordercolor": COLORS["border"],
-                "font": {
-                    "family": font_family,
-                    "color": COLORS["text_primary"],
-                    "size": 13,
-                },
-            },
-            "margin": {"l": 60, "r": 30, "t": 60, "b": 60},
-            # Remove Plotly logo / modebar
-            "modebar": {"remove": ["logo"]},
-        }
+        "trigger": "axis",
+        "backgroundColor": COLORS["primary"],
+        "borderColor": COLORS["accent"],
+        "borderWidth": 1,
+        "padding": [8, 12],
+        "textStyle": {
+            "color": "#FFFFFF",
+            "fontFamily": "Source Sans Pro",
+            "fontSize": 12,
+        },
+        "axisPointer": {
+            "type": "line",
+            "lineStyle": {"color": COLORS["accent"], "width": 1, "type": "dashed"},
+        },
     }
 
 
+def get_axis_style(axis_type: Literal["value", "category"] = "value") -> dict[str, Any]:
+    """Return axis styling; horizontal dashed grids for value axes only."""
+    font = "IBM Plex Mono" if axis_type == "value" else "Source Sans Pro"
+    out: dict[str, Any] = {
+        "axisLine": {"lineStyle": {"color": COLORS["grid"]}},
+        "axisTick": {"show": False},
+        "axisLabel": {
+            "color": COLORS["text_secondary"],
+            "fontSize": 10,
+            "fontFamily": font,
+        },
+    }
+    if axis_type == "value":
+        out["splitLine"] = {
+            "show": True,
+            "lineStyle": {"color": COLORS["grid"], "type": "dashed"},
+        }
+    else:
+        out["splitLine"] = {"show": False}
+    return out
+
+
+def get_echarts_base_options() -> dict[str, Any]:
+    """Shared ECharts JSON base; merge chart-specific options on top."""
+    base = {
+        "backgroundColor": COLORS["card_bg"],
+        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
+        "grid": {
+            "left": 50,
+            "right": 20,
+            "top": 30,
+            "bottom": 60,
+            "containLabel": True,
+        },
+        "tooltip": get_tooltip_style(),
+        "animation": True,
+        "animationDuration": 400,
+    }
+    return base
+
+
+def render_kpi_card(
+    label: str,
+    value: str,
+    unit: str,
+    delta: str,
+    delta_direction: Literal["up", "down", "flat"],
+    variant: Literal["primary", "accent", "danger", "success"],
+) -> str:
+    """Return HTML for a KPI card (caller uses st.markdown(..., unsafe_allow_html=True)."""
+    return f"""
+<div class="kpi-card kpi-{variant}">
+  <div class="kpi-label">{label}</div>
+  <div class="kpi-value">{value}<span class="kpi-unit">{unit}</span></div>
+  <div class="kpi-delta delta-{delta_direction}">{delta}</div>
+</div>
+"""
+
+
+def render_card_header(title: str, subtitle: str, tag: str) -> str:
+    """Return HTML for a card header row."""
+    return f"""
+<div class="card-header">
+  <div>
+    <div class="card-title">{title}</div>
+    <div class="card-subtitle">{subtitle}</div>
+  </div>
+  <span class="card-tag">{tag}</span>
+</div>
+"""
+
+
+def render_page_header(eyebrow: str, title: str, subtitle: str, year: str) -> str:
+    """Return HTML for the main page title block."""
+    return f"""
+<div class="page-header">
+  <div class="page-title-group">
+    <div class="eyebrow">{eyebrow}</div>
+    <h1 class="page-title">{title}</h1>
+    <div class="page-sub">{subtitle}</div>
+  </div>
+  <div class="header-meta">
+    <div class="year-display">{year}</div>
+    <div>Analysår</div>
+  </div>
+</div>
+"""
+
+
 # ---------------------------------------------------------------------------
-# 4. get_risk_color()
+# Landing page (home) — HTML fragments; Swedish copy from callers
+# ---------------------------------------------------------------------------
+
+_NAV_ICONS: dict[str, str] = {
+    "map": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5 9 4.5 15 6.5 21 4.5V19l-6 2-6-2-6 2V5.5l6-2zM9 4.5v15M15 6.5v15"/></svg>',
+    "layers": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>',
+}
+
+
+def render_landing_hero(
+    eyebrow: str,
+    headline: str,
+    lead: str,
+    cta: str,
+) -> str:
+    """Dark navy hero block for the home page."""
+    cta_html = ""
+    if cta.strip():
+        cta_html = f'<p class="lp-hero-cta">{cta}</p>'
+    return f"""
+<div class="lp-hero">
+  <div class="lp-hero-inner">
+    <div class="lp-eyebrow">{eyebrow}</div>
+    <h1 class="lp-headline">{headline}</h1>
+    <p class="lp-hero-lead">{lead}</p>
+    {cta_html}
+  </div>
+</div>
+"""
+
+
+def render_landing_stat_strip(stats: list[dict[str, str]]) -> str:
+    """
+    Four (or fewer) stat cells. Each dict: label, value, optional unit (key 'unit').
+    """
+    cells = []
+    for s in stats:
+        unit = s.get("unit", "")
+        uhtml = f'<span class="lp-stat-unit">{unit}</span>' if unit else ""
+        cells.append(
+            f'<div class="lp-stat-cell"><div class="lp-stat-label">{s["label"]}</div>'
+            f'<div class="lp-stat-value">{s["value"]}{uhtml}</div></div>'
+        )
+    return f'<div class="lp-stat-strip">{"".join(cells)}</div>'
+
+
+def render_landing_section_title(text: str) -> str:
+    """Eyebrow-style section title on light background."""
+    return f'<div class="lp-section-title">{text}</div>'
+
+
+def render_landing_what_is_block(title: str, p1: str, p2: str) -> str:
+    """'Vad är KRI?' explanatory card."""
+    return f"""
+<div class="lp-section">
+  {render_landing_section_title(title)}
+  <div class="lp-card-light lp-explain-card">
+    <p class="lp-body">{p1}</p>
+    <p class="lp-body-secondary">{p2}</p>
+  </div>
+</div>
+"""
+
+
+def _landing_step_connector_svg() -> str:
+    """Horizontal arrow between pipeline steps (decorative)."""
+    return (
+        '<div class="lp-step-connector" aria-hidden="true">'
+        '<svg class="lp-step-arrow-svg" viewBox="0 0 44 20" xmlns="http://www.w3.org/2000/svg" '
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" focusable="false">'
+        '<path d="M4 10h26"/><path d="M26 4l10 6-10 6"/>'
+        "</svg></div>"
+    )
+
+
+def render_landing_steps(
+    steps: list[tuple[str, str, str, str]],
+) -> str:
+    """
+    Three numbered steps with arrow connectors (step → step).
+    Each tuple: (number_label, title, body, icon_key data|normalize|classify).
+    """
+    icon_extra = {
+        "data": '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3M5 17c0 1.7 3.1 3 7 3s7-1.3 7-3"/><path d="M5 5v14c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/></svg>',
+        "normalize": '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 19V5M4 19h16M8 17V7M12 17v-5M16 17v-9"/></svg>',
+        "classify": '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="M8 10h8M8 14h5"/></svg>',
+    }
+    parts: list[str] = []
+    for i, (num, title, body, kind) in enumerate(steps):
+        ic = icon_extra.get(kind, icon_extra["data"])
+        parts.append(
+            f"""
+<div class="lp-step">
+  <div class="lp-step-num">{num}</div>
+  <div class="lp-step-title">{ic}<span>{title}</span></div>
+  <p class="lp-step-text">{body}</p>
+</div>
+"""
+        )
+        if i < len(steps) - 1:
+            parts.append(_landing_step_connector_svg())
+    return (
+        '<div class="lp-section"><div class="lp-section-title">Så fungerar det i korthet</div>'
+        f'<div class="lp-steps">{"".join(parts)}</div></div>'
+    )
+
+
+def render_landing_nav_card(
+    tag: str,
+    title: str,
+    desc: str,
+    icon: Literal["map", "layers", "search"],
+) -> str:
+    """Feature card (visual only; pair with st.page_link below for accessibility)."""
+    svg = _NAV_ICONS.get(icon, _NAV_ICONS["map"])
+    return f"""
+<div class="lp-nav-card">
+  <div class="lp-nav-card-head">
+    <div class="lp-nav-icon">{svg}</div>
+    <span class="lp-nav-tag">{tag}</span>
+  </div>
+  <div class="lp-nav-title">{title}</div>
+  <p class="lp-nav-desc">{desc}</p>
+</div>
+"""
+
+
+def render_landing_nav_section_title(text: str, in_panel: bool = False) -> str:
+    """H2-style title above the three feature cards."""
+    cls = "lp-nav-section-title"
+    if in_panel:
+        cls += " lp-nav-section-title-in-panel"
+    return f'<div class="{cls}">{text}</div>'
+
+
+def render_landing_credibility(
+    pills: list[str],
+    meta: str,
+) -> str:
+    """Sources + KRI version line."""
+    pill_html = "".join(f'<span class="lp-cred-pill">{p}</span>' for p in pills)
+    return f"""
+<div class="lp-cred">
+  <div class="lp-cred-pills">{pill_html}</div>
+  <div class="lp-cred-meta">{meta}</div>
+</div>
+"""
+
+
+# ---------------------------------------------------------------------------
+# Risk colour helpers
 # ---------------------------------------------------------------------------
 
 _RISK_COLOR_MAP: dict[str, str] = {
     "Låg": COLORS["low_risk"],
     "Medel": COLORS["medium_risk"],
     "Hög": COLORS["high_risk"],
-    # Tolerant aliases
     "låg": COLORS["low_risk"],
     "medel": COLORS["medium_risk"],
     "hög": COLORS["high_risk"],
@@ -418,165 +1214,17 @@ _RISK_COLOR_MAP: dict[str, str] = {
 
 
 def get_risk_color(risk_class: str) -> str:
-    """Return the hex color for a Swedish risk class label.
-
-    Parameters
-    ----------
-    risk_class:
-        One of ``"Låg"``, ``"Medel"``, or ``"Hög"`` (case-insensitive).
-
-    Returns
-    -------
-    str
-        Hex color string, e.g. ``"#2E7D5B"``.
-
-    Raises
-    ------
-    ValueError
-        If ``risk_class`` is not recognised.
-    """
+    """Return hex colour for a Swedish risk class label."""
     color = _RISK_COLOR_MAP.get(risk_class)
     if color is None:
         raise ValueError(
-            f"Okänd riskklass: '{risk_class}'. "
-            f"Giltiga värden: 'Låg', 'Medel', 'Hög'."
+            f"Okänd riskklass: '{risk_class}'. Giltiga värden: 'Låg', 'Medel', 'Hög'."
         )
     return color
 
 
 def get_risk_badge_html(risk_class: str) -> str:
-    """Return an HTML badge span for the given Swedish risk class.
-
-    Produces a coloured inline badge suitable for ``st.markdown(..., unsafe_allow_html=True)``.
-    """
-    css_class_map = {
-        "Låg": "risk-badge-lag",
-        "Medel": "risk-badge-medel",
-        "Hög": "risk-badge-hog",
-    }
-    css_cls = css_class_map.get(risk_class, "risk-badge-neu")
-    return f'<span class="risk-badge {css_cls}">{risk_class}</span>'
-
-
-# ---------------------------------------------------------------------------
-# 5. render_kpi_card()
-# ---------------------------------------------------------------------------
-
-def render_kpi_card(
-    title: str,
-    value: str | int | float,
-    delta: float | None = None,
-    prefix: str = "",
-    suffix: str = "",
-    delta_inverted: bool = False,
-    help_text: str | None = None,
-) -> None:
-    """Render a KPI metric card using custom HTML for consistent styling.
-
-    Parameters
-    ----------
-    title:
-        Swedish label shown above the value in small caps,
-        e.g. ``"Högrisk kommuner"``.
-    value:
-        The primary metric value.  Pass a pre-formatted string for full
-        control (e.g. ``"3 452 kr"``), or a number which will be formatted
-        with thousands separator.
-    delta:
-        Optional change vs previous period.  Positive → good by default;
-        pass ``delta_inverted=True`` for metrics where positive = bad
-        (e.g. number of high-risk municipalities).
-    prefix:
-        String prepended to the value display, e.g. ``"kr "`` (rare).
-    suffix:
-        String appended to the value display, e.g. ``" %"`` or ``" kr"``.
-    delta_inverted:
-        When ``True``, a positive delta is displayed in red (worse) and a
-        negative delta in green (better).  Default: ``False``.
-    help_text:
-        Optional Swedish tooltip shown as a small ``ⓘ`` icon.
-    """
-    # Format numeric values
-    if isinstance(value, (int, float)):
-        formatted_value = f"{value:,.0f}".replace(",", "\u202f")
-    else:
-        formatted_value = str(value)
-
-    display_value = f"{prefix}{formatted_value}{suffix}"
-
-    # Delta HTML
-    delta_html = ""
-    if delta is not None:
-        sign = "+" if delta > 0 else ""
-        delta_str = f"{sign}{delta:,.1f}".replace(",", "\u202f")
-        if delta == 0:
-            css_cls = "kpi-card-delta-neu"
-            arrow = "→"
-            delta_label = "oförändrat"
-        elif (delta > 0 and not delta_inverted) or (delta < 0 and delta_inverted):
-            css_cls = "kpi-card-delta-pos"
-            arrow = "▲"
-            delta_label = "mot föregående år"
-        else:
-            css_cls = "kpi-card-delta-neg"
-            arrow = "▼"
-            delta_label = "mot föregående år"
-
-        delta_html = (
-            f'<div class="{css_cls}">'
-            f'{arrow} {delta_str}{suffix} {delta_label}'
-            f'</div>'
-        )
-
-    help_html = ""
-    if help_text:
-        help_html = (
-            f'<span title="{help_text}" style="cursor:help; color: #9CA3AF; '
-            f'font-size:14px; margin-left:4px;">ⓘ</span>'
-        )
-
-    card_html = f"""
-    <div class="kpi-card">
-        <div class="kpi-card-title">{title}{help_html}</div>
-        <div class="kpi-card-value">{display_value}</div>
-        {delta_html}
-    </div>
-    """
-
-    st.markdown(card_html, unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------------------------
-# 6. Sidebar helpers
-# ---------------------------------------------------------------------------
-
-def render_sidebar_header(subtitle: str | None = None) -> None:
-    """Render KRI branding block at the top of the sidebar.
-
-    Parameters
-    ----------
-    subtitle:
-        Optional Swedish subtitle line under the logo text.
-    """
-    logo_html = f"""
-    <div style="padding: 0.5rem 0 1.2rem 0; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 1.2rem;">
-        <div style="font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em;">
-            📊 KRI Kontrollpanel
-        </div>
-        <div style="font-size: 11px; color: #94A3B8; margin-top: 3px; line-height: 1.4;">
-            {subtitle or "Kommunal Finansiell Riskindikator"}
-        </div>
-    </div>
-    """
-    st.sidebar.markdown(logo_html, unsafe_allow_html=True)
-
-
-def render_data_source_footer() -> None:
-    """Render a small 'Källa' footer at the bottom of the sidebar."""
-    footer_html = """
-    <div style="position: fixed; bottom: 1rem; font-size: 11px; color: #64748B; line-height: 1.5;">
-        <strong style="color:#94A3B8;">Källa:</strong> SCB, Arbetsförmedlingen<br>
-        <span style="color:#64748B;">Period: 2010–2024</span>
-    </div>
-    """
-    st.sidebar.markdown(footer_html, unsafe_allow_html=True)
+    """Return a pill span for use with st.markdown(..., unsafe_allow_html=True)."""
+    css_map = {"Låg": "lag", "Medel": "medel", "Hög": "hog"}
+    cls = css_map.get(risk_class, "medel")
+    return f'<span class="risk-pill {cls}">{risk_class}</span>'

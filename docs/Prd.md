@@ -42,7 +42,7 @@ Build an interactive dashboard that ranks all 290 Swedish municipalities by a co
 | Language | Python 3.11+ |
 | Dashboard | Streamlit |
 | Data processing | pandas, numpy |
-| Visualization | plotly |
+| Visualization | streamlit-echarts (Apache ECharts) |
 | API calls | requests, httpx |
 | Statistics | scipy.stats, scikit-learn |
 | PDF report | reportlab or weasyprint |
@@ -117,39 +117,73 @@ kommun-risk-dashboard/
 ## 5. Design Specification
 
 ### Overall design principle
-**Nordic Banking Analytics.** Think Riksbanken, Handelsbanken Private Banking, or SCB publications. Clean, structured, professional. Not academic, not startup.
+Banking and insurance sector analytics. Reference: Apache ECharts gallery aesthetic
+(streamlit-echarts.streamlit.app), Bloomberg Terminal restraint, Riksbanken
+publication style. Clean geometric composition, tabular numeric precision,
+heavy use of typographic hierarchy, and disciplined color use.
 
-### Color Palette
+### Color Palette (updated)
 | Usage | Hex |
 |-------|-----|
-| Primary (dark blue) | #1B2A4A |
+| Primary (deep navy) | #0B1F3F |
+| Primary light | #1B2A4A |
 | Secondary (steel blue) | #4A6FA5 |
-| Accent (gold) | #C4A35A |
+| Accent (muted gold) | #C4A35A |
 | Low risk | #2E7D5B |
 | Medium risk | #D4A03C |
 | High risk | #B94A48 |
-| Background | #F7F8FA |
+| Background app | #F7F8FA |
+| Card background | #FFFFFF |
 | Text primary | #1A1A2E |
 | Text secondary | #6B7280 |
+| Text tertiary | #9CA3AF |
+| Border / divider | #EEF0F3 |
 | Grid lines | #E5E7EB |
+| Hover row | #F9FAFB |
+
+Diverging scale (for map and continuous visualizations):
+['#2E7D5B', '#A8C4A4', '#E5E7EB', '#E8BE7C', '#D4A03C', '#B94A48']
 
 ### Typography
-| Element | Font | Size |
-|---------|------|------|
-| H1 | Source Sans Pro Bold | 28px |
-| H2 | Source Sans Pro SemiBold | 22px |
-| Body | Source Sans Pro Regular | 16px |
-| KPI numbers | Source Sans Pro Bold | 36px |
-| Footnotes | Source Sans Pro Light | 12px |
+| Element | Font | Size | Weight |
+|---------|------|------|--------|
+| Display number | Source Sans Pro | 32px | 700 |
+| H1 page title | Source Sans Pro | 28px | 700 |
+| H2 card title | Source Sans Pro | 15px | 700 |
+| Body | Source Sans Pro | 14px | 400 |
+| Eyebrow label | Source Sans Pro | 11px uppercase letter-spacing 1.5px | 600 |
+| Numeric data | IBM Plex Mono | 12.5px | 400 |
+| KPI label | Source Sans Pro | 10.5px uppercase letter-spacing 1.2px | 600 |
+
+Load from Google Fonts:
+https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap
+
+### Chart library
+Primary: streamlit-echarts (st_echarts). Use Apache ECharts JSON option objects.
+All charts must use the shared base options defined in app/styles/theme.py.
+No default ECharts themes; explicit styling everywhere.
 
 ### Chart design rules
-- White background (#FFFFFF) with subtle gridlines (#E5E7EB)
-- Axis labels in dark gray (#6B7280)
-- Risk clusters use the defined risk colors (green, amber, red)
-- Distribution charts show all 290 municipalities with risk zone background coloring
-- No gradients, no 3D, no shadows on charts
-- Hover tooltips with municipality name and values
-- **CRITICAL: All chart text (axis titles, legends, tooltips, annotations) must be Swedish**
+- White background (#FFFFFF), no card borders on charts themselves
+- Grid lines #E5E7EB, dashed horizontal gridlines only, no vertical gridlines
+- Axis lines hidden or rendered in #E5E7EB
+- Axis labels in #6B7280, font-size 10px, IBM Plex Mono for numeric axes
+- Series colors from primary palette; risk zones use the three risk colors
+- Tooltip: dark navy background (#0B1F3F), 1px gold border (#C4A35A),
+  white text, Source Sans Pro
+- No gradients, no shadows, no 3D, no animation delays longer than 400ms
+- Rounded bar tops (radius 2px top corners only)
+- Every chart text element in Swedish
+
+### Layout grid
+- Sidebar: fixed 260px dark navy (#0B1F3F)
+- Main content: 32px vertical, 40px horizontal padding
+- KPI row: 4 equal columns, 16px gap
+- Chart row: 1.55fr to 1fr two-column, 16px gap
+- Cards: white bg, 1px #EEF0F3 border, 4px radius, 22px 24px padding
+- Card header: title + subtitle on left, monospace tag badge on right,
+  separated from content by 1px #EEF0F3 border-bottom
+- KPI cards: 3px left accent bar in primary/accent/danger/success color
 
 ---
 

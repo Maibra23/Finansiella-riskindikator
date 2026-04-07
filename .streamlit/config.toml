@@ -1,0 +1,4 @@
+# Custom navigation uses st.sidebar.page_link only — hide default multipage header
+# (otherwise Streamlit shows "main" / script name above the branded block).
+[client]
+showSidebarNavigation = false

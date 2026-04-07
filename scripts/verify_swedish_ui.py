@@ -2,11 +2,12 @@
 """
 scripts/verify_swedish_ui.py
 -----------------------------
-Scan all Streamlit UI files under app/ for user-facing English text.
+Scan all Streamlit UI files under app/ for user-facing English text and
+for typographic dashes (em/en dash) that must not appear in UI copy.
 
-Only checks strings that are actually shown to the end user — skips
-docstrings, code comments, DataFrame column names used internally,
-CSS property values, and Streamlit API keys.
+Only checks strings that are actually shown to the end user (under app/).
+Skips docstrings, DataFrame column names used internally, CSS fragments
+inside theme strings, and Streamlit API keys.
 
 Exit code 0  all clean, no violations found.
 Exit code 1  violations detected (printed to stdout).
@@ -41,7 +42,7 @@ FORBIDDEN_STANDALONE: set[str] = {
     "vs",
 }
 
-# Internal DataFrame column names that are NOT user-facing — always skip.
+# Internal DataFrame column names that are NOT user-facing (always skip).
 INTERNAL_COLUMN_NAMES: set[str] = {
     "municipality_code", "municipality_name", "year", "kri_score",
     "z_debt", "z_unemployment", "z_dependency", "z_population", "z_tax_base",
@@ -64,16 +65,30 @@ SKIP_PREFIXES = (
 
 
 class Violation:
-    __slots__ = ("file", "line", "col", "snippet", "word")
+    __slots__ = ("file", "line", "col", "snippet", "word", "kind")
 
-    def __init__(self, file: str, line: int, col: int, snippet: str, word: str):
+    def __init__(
+        self,
+        file: str,
+        line: int,
+        col: int,
+        snippet: str,
+        word: str,
+        kind: str = "english",
+    ):
         self.file = file
         self.line = line
         self.col = col
         self.snippet = snippet
         self.word = word
+        self.kind = kind
 
     def __str__(self) -> str:
+        if self.kind == "dash":
+            return (
+                f"  {self.file}:{self.line}:{self.col}  "
+                f'Typographic dash "{self.word}" in UI string: {self.snippet!r}'
+            )
         return (
             f"  {self.file}:{self.line}:{self.col}  "
             f'English word "{self.word}" in: {self.snippet!r}'
@@ -100,6 +115,40 @@ def _should_skip(raw: str) -> bool:
         return True
 
     return False
+
+
+def _is_css_or_comment_fragment(raw: str) -> bool:
+    """True for theme/CSS chunks where em dash in comments is allowed."""
+    if "/*" in raw or "*/" in raw:
+        return True
+    if "@media" in raw or "!important" in raw:
+        return True
+    if "rgba(" in raw or "font-family:" in raw:
+        return True
+    if "stroke-width" in raw and "{" in raw:
+        return True
+    return False
+
+
+def _check_dashes(raw: str, filepath: str, lineno: int, col: int) -> list[Violation]:
+    """
+    Forbid Unicode em dash (U+2014) and en dash (U+2013) in user-facing copy.
+    ASCII hyphen in compounds (e.g. z-poäng, KPI-rad) remains allowed.
+    """
+    if not raw or _should_skip(raw) or _is_css_or_comment_fragment(raw):
+        return []
+
+    violations: list[Violation] = []
+    snippet = raw[:100].replace("\n", " ")
+    if "\u2014" in raw:
+        violations.append(
+            Violation(filepath, lineno, col, snippet, "em dash (U+2014)", kind="dash")
+        )
+    if "\u2013" in raw:
+        violations.append(
+            Violation(filepath, lineno, col, snippet, "en dash (U+2013)", kind="dash")
+        )
+    return violations
 
 
 def _clean_for_check(text: str) -> str:
@@ -215,6 +264,9 @@ def _walk_user_facing(tree: ast.Module, filepath: str) -> list[Violation]:
             violations.extend(
                 _check_string(node.value, filepath, node.lineno, node.col_offset)
             )
+            violations.extend(
+                _check_dashes(node.value, filepath, node.lineno, node.col_offset)
+            )
 
         elif isinstance(node, ast.JoinedStr):
             for val in node.values:
@@ -224,6 +276,9 @@ def _walk_user_facing(tree: ast.Module, filepath: str) -> list[Violation]:
                         continue
                     violations.extend(
                         _check_string(val.value, filepath, val.lineno, val.col_offset)
+                    )
+                    violations.extend(
+                        _check_dashes(val.value, filepath, val.lineno, val.col_offset)
                     )
 
     return violations
@@ -257,10 +312,10 @@ def main() -> int:
     for pf in py_files:
         all_violations.extend(scan_file(pf))
 
-    seen: set[tuple[str, int, str]] = set()
+    seen: set[tuple[str, int, str, str]] = set()
     unique: list[Violation] = []
     for v in all_violations:
-        key = (v.file, v.line, v.word)
+        key = (v.file, v.line, v.word, v.kind)
         if key not in seen:
             seen.add(key)
             unique.append(v)
