@@ -327,7 +327,7 @@ with map_col:
                 "debt_per_capita": "Skuld per capita (kr)",
                 "unemployment": "Arbetslöshet (%)",
             },
-            title=f"KRI Poäng vs Skattekraft — {selected_year}",
+            title=f"KRI Poäng mot Skattekraft — {selected_year}",
         )
         fig_scatter.update_layout(
             **get_plotly_template()["layout"],

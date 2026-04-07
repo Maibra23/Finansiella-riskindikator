@@ -45,14 +45,14 @@ def apply_streamlit_theme() -> None:
     Swedish.
     """
     st.set_page_config(
-        page_title="KRI Dashboard",
+        page_title="KRI Kontrollpanel",
         page_icon="📊",
         layout="wide",
         initial_sidebar_state="expanded",
         menu_items={
             "Get Help": None,
             "Report a bug": None,
-            "About": "**KRI Dashboard** — Kommunal Finansiell Riskindikator\n\nKälla: SCB, Arbetsförmedlingen",
+            "About": "**KRI Kontrollpanel** — Kommunal Finansiell Riskindikator\n\nKälla: SCB, Arbetsförmedlingen",
         },
     )
 
@@ -516,11 +516,11 @@ def render_kpi_card(
         elif (delta > 0 and not delta_inverted) or (delta < 0 and delta_inverted):
             css_cls = "kpi-card-delta-pos"
             arrow = "▲"
-            delta_label = f"vs föregående år"
+            delta_label = "mot föregående år"
         else:
             css_cls = "kpi-card-delta-neg"
             arrow = "▼"
-            delta_label = f"vs föregående år"
+            delta_label = "mot föregående år"
 
         delta_html = (
             f'<div class="{css_cls}">'
@@ -561,7 +561,7 @@ def render_sidebar_header(subtitle: str | None = None) -> None:
     logo_html = f"""
     <div style="padding: 0.5rem 0 1.2rem 0; border-bottom: 1px solid rgba(255,255,255,0.15); margin-bottom: 1.2rem;">
         <div style="font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.01em;">
-            📊 KRI Dashboard
+            📊 KRI Kontrollpanel
         </div>
         <div style="font-size: 11px; color: #94A3B8; margin-top: 3px; line-height: 1.4;">
             {subtitle or "Kommunal Finansiell Riskindikator"}
