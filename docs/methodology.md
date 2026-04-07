@@ -1015,3 +1015,63 @@ The full KRI results are saved to `data/processed/kri_results.parquet` with the 
 **Dataset dimensions:** 4,350 rows (290 municipalities × 15 years), 21 columns, 0 NaN values.
 
 **Implementation reference:** `src/index_builder.py`, class `KRIBuilder`.
+
+---
+
+## 10. Dashboard Implementation
+
+### 10.1 Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Application framework | Streamlit | Multi-page web app, widgets, caching |
+| Visualization | Apache ECharts (via `streamlit-echarts`) | All interactive charts |
+| Map data | GeoJSON centroids (`data/geo/kommuner.geojson`) | Sweden municipality positions |
+| Data storage | Parquet (pandas) | Processed pipeline outputs |
+| Styling | Custom CSS injected via `st.markdown()` | Design system, fonts, colors |
+
+### 10.2 Design System
+
+All visual constants are defined centrally in `app/styles/theme.py`:
+
+**Color palette:**
+- Primary navy: `#0B1F3F`
+- Accent gold: `#C4A35A`
+- Risk Low (Låg): `#2E7D32` (green)
+- Risk Medium (Medel): `#F57F17` (amber)
+- Risk High (Hög): `#C62828` (red)
+- Background: `#F7F8FA`
+
+**Typography:** Source Sans Pro (headings), IBM Plex Mono (numeric KPI values)
+
+**ECharts helpers** (all charts must use these to ensure consistent styling):
+- `get_echarts_base_options()` – grid, animation, background, responsive
+- `get_tooltip_style()` – dark navy tooltip with gold border
+- `get_axis_style(axis_type)` – axis line, tick, and label styling
+
+### 10.3 Page Architecture (as of Day 3 completion)
+
+**`app/main.py`** — Entry point and landing page
+- Applies theme CSS via `apply_streamlit_theme()`
+- Loads `kri_results.parquet` with `@st.cache_data`
+- Renders landing page: hero block, stat strip, "Vad är KRI?" explanation, navigation cards
+- Stores `selected_year`, `selected_risks`, `kri_df` in session state for all pages
+- Sidebar: brand header, year pill selector, risk class filter, source attribution
+
+**`app/pages/1_riksoversikt.py`** — National overview (complete)
+- Row 1: Page title with selected year
+- Row 2: 4 KPI cards (Genomsnittligt KRI, Högrisk kommuner, Medianskuld per capita, Befolkningsförändring)
+- Row 3: Sweden scatter map (colored circles at municipality centroids) + KRI distribution histogram with risk-zone shading
+- Row 4: Top 15 highest risk / Top 15 lowest risk tables
+
+**`app/components/charts.py`** — ECharts option builders
+- `build_distribution_histogram(kri_df, year)` – Histogram with risk zone backgrounds and median line
+- `build_sweden_geo_scatter(kri_df, year)` – Scatter map using lat/lon centroids from GeoJSON; color = risk class
+- `build_horizontal_contribution_bar(row)` – Per-variable contribution bars (for Page 2)
+- `build_radar(municipality_row, national_avg)` – Spider chart: municipality vs. rikssnitt (for Page 2)
+- `build_grouped_bars_comparison(kri_df, codes, year)` – Side-by-side comparison bars (for Page 2)
+- `build_line_trend(kri_df, codes)` – Multi-line KRI trend 2010–2024 (for Pages 2 and 3)
+
+### 10.4 Language Policy
+
+All user-facing strings are in Swedish. Swedish display names are stored in `SWEDISH_LABELS` in `src/config.py` and referenced throughout `app/`. No English text is rendered in the UI. Technical identifiers (column names, variable names, function names) remain in English.

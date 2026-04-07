@@ -2,6 +2,8 @@
 
 **Datadriven analys av strukturell ekonomisk sårbarhet i Sveriges 290 kommuner**
 
+> An interactive Streamlit dashboard that ranks all 290 Swedish municipalities on a composite financial vulnerability index, covering 2010–2024.
+
 ---
 
 ## Om projektet
@@ -20,20 +22,36 @@ Kommunal Finansiell Riskindikator (KRI) är en interaktiv dashboard som rankar S
 
 ### Datakällor
 
-- **SCB Statistikdatabasen** - Balansräkning, befolkning, skattekraft
-- **Arbetsförmedlingen / Kolada** - Arbetslöshet
-- **Analysperiod:** 2010-2024 (15 år)
+- **SCB Statistikdatabasen** — Balansräkning, befolkning, skattekraft (PxWeb API)
+- **Arbetsförmedlingen / Kolada** — Arbetslöshet (KPI N03937)
+- **Analysperiod:** 2010–2024 (15 år, 4 350 observationer, 0 saknade värden)
 
 ---
 
-## Installation
+## Snabbstart (Quick start)
+
+```bash
+# Clone
+git clone https://github.com/your-username/kommun-risk-dashboard.git
+cd kommun-risk-dashboard
+
+# One-command setup (creates venv, installs deps, fetches data)
+bash scripts/setup.sh
+
+# Run the dashboard
+streamlit run app/main.py
+```
+
+---
+
+## Installation (manual)
 
 ### Requirements
 
 - Python 3.11 or higher
 - pip (Python package manager)
 
-### Setup
+### Steps
 
 1. Clone the repository:
 ```bash
@@ -44,7 +62,8 @@ cd kommun-risk-dashboard
 2. Create a virtual environment (recommended):
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate       # Linux / macOS
+venv\Scripts\activate          # Windows
 ```
 
 3. Install dependencies:
@@ -69,30 +88,44 @@ streamlit run app/main.py
 ```
 kommun-risk-dashboard/
 ├── data/
-│   ├── raw/           # Raw API data
-│   ├── processed/     # Cleaned and computed data
-│   ├── cache/         # API response cache
-│   └── geo/           # GeoJSON files for map
+│   ├── raw/                   # Raw API responses (JSON)
+│   ├── processed/             # kri_base_data.parquet, kri_results.parquet
+│   ├── cache/                 # API response cache (auto-managed)
+│   └── geo/                   # kommuner.geojson, centroids CSV
 ├── src/
-│   ├── config.py      # Configuration, API paths, labels
-│   ├── data_fetcher.py    # API clients (SCB, Kolada)
-│   ├── data_cleaner.py    # Data cleaning pipeline
-│   ├── index_builder.py   # KRI computation
-│   ├── clustering.py      # Classification and peer groups
-│   ├── validators.py      # Data quality validation
-│   └── report_gen.py      # PDF report generation
+│   ├── config.py              # API endpoints, weights, SWEDISH_LABELS, municipality list
+│   ├── data_fetcher.py        # SCBFetcher + KoladaFetcher API clients
+│   ├── data_cleaner.py        # Data cleaning and derived variable computation
+│   ├── index_builder.py       # KRIBuilder: z-scores, weighting, classification
+│   ├── clustering.py          # k-means, peer groups, risk transitions
+│   ├── validators.py          # Data quality checks and municipality flags
+│   └── report_gen.py          # 5-page PDF report generator (reportlab)
 ├── app/
-│   ├── main.py        # Streamlit app entry point
-│   ├── pages/         # Dashboard pages
-│   ├── components/    # Reusable UI components
-│   └── styles/        # Theme and design system
+│   ├── main.py                # Streamlit entry point + landing page
+│   ├── pages/
+│   │   ├── 1_riksoversikt.py  # National overview: map, KPIs, distribution
+│   │   ├── 2_riskdekomposition.py  # Risk driver analysis per municipality
+│   │   └── 3_kommunanalys.py  # Municipality deep dive + peer comparison
+│   ├── components/
+│   │   ├── charts.py          # Apache ECharts option builders
+│   │   ├── sweden_map.py      # Sweden scatter map wrapper
+│   │   └── landing_visuals.py # Landing page HTML/SVG fragments
+│   └── styles/
+│       └── theme.py           # Design system, CSS injection, ECharts helpers
 ├── docs/
-│   ├── PRD.md         # Product Requirements
-│   ├── METHODOLOGY.md # Methodology documentation
-│   └── TASKS.md       # Development tasks
-├── tests/             # Test files
-├── scripts/           # Utility scripts
-├── report/            # Generated PDF reports
+│   ├── Prd.md                 # Product Requirements Document
+│   ├── METHODOLOGY.md         # Full methodology documentation
+│   └── tasks.md               # 5-day development task plan
+├── tests/
+│   └── test_index.py          # 28 unit tests (weights, z-scores, known municipalities)
+├── scripts/
+│   ├── run_pipeline.py        # Full ETL: fetch → clean → build → save
+│   ├── verify_pipeline.py     # Pipeline output validation
+│   ├── verify_swedish_ui.py   # Swedish language compliance check
+│   ├── full_data_audit.py     # Comprehensive data quality audit
+│   └── setup.sh               # One-command project setup script
+├── report/                    # Generated PDF reports (gitignored)
+├── .env.example               # Environment variable template
 ├── requirements.txt
 └── README.md
 ```
@@ -103,39 +136,81 @@ kommun-risk-dashboard/
 
 ### Data Pipeline
 
-1. **Fetch** - API clients retrieve data from SCB and Kolada
-2. **Clean** - Transform raw data, compute derived variables
-3. **Build** - Z-score normalization, weighted index computation
-4. **Classify** - Quantile-based risk classification (Low/Medium/High)
-5. **Validate** - Data quality checks and flagging
+```
+SCB PxWeb API ──┐
+                ├──► DataCleaner ──► KRIBuilder ──► kri_results.parquet
+Kolada API ─────┘
+```
+
+1. **Fetch** — `SCBFetcher` and `KoladaFetcher` retrieve data via REST APIs with caching and retry logic
+2. **Clean** — `DataCleaner` handles unit conversion, derived variables (dependency ratio, 5-year pop. growth), and merging
+3. **Normalize** — Cross-sectional z-scores per year across all 290 municipalities
+4. **Correct** — Direction correction so that higher z-score always means higher risk
+5. **Compute** — Weighted sum → KRI score per municipality-year
+6. **Classify** — Quantile-based: bottom 25% = Låg, top 25% = Hög, middle = Medel
+7. **Validate** — `DataValidator` flags special municipalities (Gotland, Knivsta, Heby)
 
 ### KRI Formula
 
 ```
-KRI(i,t) = Σ(wk × zk(i,t))
+KRI(i,t) = Σ wk × zk(i,t)
 ```
 
-Where:
-- `i` = municipality
-- `t` = year
-- `wk` = weight for variable k
-- `zk` = z-score normalized value for variable k
-
-Z-scores are computed cross-sectionally (all municipalities within one year).
+| Symbol | Meaning |
+|--------|---------|
+| `i` | Municipality |
+| `t` | Year |
+| `wk` | Variable weight (sums to 1.0) |
+| `zk` | Direction-corrected cross-sectional z-score |
 
 ### Classification
 
-- **Låg risk (Low)**: KRI below 25th percentile
-- **Medel risk (Medium)**: KRI between 25th and 75th percentile
-- **Hög risk (High)**: KRI above 75th percentile
+| Risk class | Threshold | Color |
+|------------|-----------|-------|
+| **Låg** | KRI < 25th percentile | 🟢 `#2E7D5B` |
+| **Medel** | 25th–75th percentile | 🟡 `#D4A03C` |
+| **Hög** | KRI > 75th percentile | 🔴 `#B94A48` |
+
+### Visualization
+
+All charts use **Apache ECharts** via `streamlit-echarts`. Shared styling helpers in `app/styles/theme.py`:
+
+- `get_echarts_base_options()` — grid, animation, background
+- `get_tooltip_style()` — navy tooltip with gold border
+- `get_axis_style(type)` — consistent axis styling
+
+Chart builders in `app/components/charts.py`:
+
+| Function | Chart type | Used on |
+|----------|-----------|---------|
+| `build_distribution_histogram()` | Histogram | Riksöversikt |
+| `build_sweden_geo_scatter()` | Scatter map | Riksöversikt |
+| `build_horizontal_contribution_bar()` | Horiz. bars | Riskdekomposition |
+| `build_radar()` | Spider/radar | Riskdekomposition |
+| `build_grouped_bars_comparison()` | Grouped bars | Riskdekomposition |
+| `build_line_trend()` | Line chart | Riskdekomposition, Kommunanalys |
 
 ---
 
 ## Dashboard Pages
 
-1. **Riksöversikt** - National overview with map, KPIs, and distribution
-2. **Riskdekomposition** - Risk driver analysis per municipality
-3. **Kommunanalys** - Deep dive with trend data and peer comparison
+| Page | Description |
+|------|-------------|
+| **Riksöversikt** | National overview: 4 KPI cards, Sweden scatter map (risk-coloured), KRI distribution histogram, top/bottom 15 risk tables |
+| **Riskdekomposition** | Per-municipality risk driver analysis: contribution bars, radar vs. national avg, multi-municipality grouped bar comparison, KRI trend line |
+| **Kommunanalys** | Municipality deep dive: 6 KPI cards with deltas, KRI trend vs. rikssnitt, 10 peer municipalities table, full historical data table + CSV download, data quality panel |
+
+All UI text is in Swedish. Code identifiers and comments are in English.
+
+---
+
+## Running Tests
+
+```bash
+pytest tests/ -v
+# 28 tests covering: weights, z-score properties, known municipalities,
+# classification distribution, temporal stability, clustering, peer analysis
+```
 
 ---
 
@@ -143,37 +218,40 @@ Z-scores are computed cross-sectionally (all municipalities within one year).
 
 ### SCB PxWeb API
 
-The project uses SCB's PxWeb API with POST requests containing JSON query bodies.
+POST requests to table URLs with JSON query bodies:
 
-Example query:
 ```json
 {
   "query": [
     {"code": "Region", "selection": {"filter": "vs:RegionKommun07", "values": []}},
-    {"code": "Tid", "selection": {"filter": "item", "values": ["2010","2024"]}}
+    {"code": "Tid",    "selection": {"filter": "item", "values": ["2010","2024"]}}
   ],
   "response": {"format": "json"}
 }
 ```
 
+Tables used: `BalansKn` (debt), `BefolkningNy` (population), `SkatteKraft` (tax base), `ResultKn` (income statement)
+
 ### Kolada API
 
-REST API for municipal key performance indicators:
-- KPI search: `GET /v2/kpi?title=arbetslöshet`
-- Data fetch: `GET /v2/data/kpi/{id}/year/{years}`
+REST API for municipal KPIs:
+```
+GET /v2/kpi?title=arbetslöshet          # search KPIs
+GET /v2/data/kpi/N03937/year/2010,...   # fetch unemployment data
+```
 
 ---
 
 ## License
 
-MIT License
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 ## Contact
 
-For questions about methodology or implementation, see the documentation in `docs/`.
+For questions about methodology or implementation, see `docs/METHODOLOGY.md`.
 
 ---
 
-*Källa: SCB, Arbetsförmedlingen*
+*Källa: SCB, Arbetsförmedlingen/Kolada · KRI v1.0 · 2010–2024*
