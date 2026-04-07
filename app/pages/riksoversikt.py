@@ -18,7 +18,7 @@ import streamlit as st
 from streamlit_echarts import st_echarts
 
 from app.components.charts import build_distribution_histogram, build_raw_indicator_histogram
-from app.components.sweden_map import render_sweden_map
+from app.components.sweden_choropleth import render_choropleth
 from app.styles.theme import (
     apply_streamlit_theme,
     format_swedish_int,
@@ -46,17 +46,16 @@ st.sidebar.markdown(
     """,
     unsafe_allow_html=True,
 )
+st.sidebar.page_link("main.py", label="Startsida")
 nav_items = [
-    ("01", "riksoversikt.py", "Riksöversikt"),
-    ("02", "riskdekomposition.py", "Riskdekomposition"),
-    ("03", "kommunanalys.py", "Kommunanalys"),
-    ("04", None, "Metod & källor"),
+    ("riksoversikt.py", "Riksöversikt"),
+    ("riskdekomposition.py", "Riskdekomposition"),
+    ("kommunanalys.py", "Kommunanalys"),
 ]
-for num, fname, title in nav_items:
-    if fname and (pages_dir / fname).exists():
+for fname, title in nav_items:
+    if (pages_dir / fname).exists():
         st.sidebar.page_link(f"pages/{fname}", label=title)
-    else:
-        st.sidebar.caption(f"{title}, kommer snart")
+st.sidebar.caption("Metod & källor, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -327,21 +326,21 @@ with map_col:
         st.markdown(
             render_card_header(
                 "Geografisk fördelning",
-                "Kommuncentroid färgad efter KRI (290 punkter)",
-                "Punktkarta",
+                "Kommunpolygoner färgade efter KRI (290 kommuner)",
+                "Koropletkarta",
             ),
             unsafe_allow_html=True,
         )
-        render_sweden_map(filtered_df, selected_year, height="440px")
+        render_choropleth(filtered_df, selected_year, height=440)
     with st.expander("ℹ️ Om kartan", expanded=False):
         st.caption(
-            "**Geografisk fördelning** visar varje kommuns centroid (mittpunkt) placerad efter "
-            "geografiska koordinater — longitud (°E) på x-axeln och latitud (°N) på y-axeln. "
-            "Axlarna spänner över Sveriges ungefärliga utsträckning: 10,8–24,4°E (väst–öst) och "
-            "55–69°N (Skåne i söder till Norrbotten i norr). Punktfärgen återger KRI-poängen: "
-            "**grön** = låg risk, **gul** = medel, **röd** = hög. Punktstorleken speglar "
-            "skuld per capita — större punkt = högre skuldbörda. Hovra över en punkt för "
-            "detaljerad kommuninformation."
+            "**Geografisk fördelning** visar varje kommuns geografiska polygon fylld med en färg "
+            "som återger KRI-poängen: **grön** = låg risk, **gul** = medel, **röd** = hög. "
+            "Färgskalan sträcker sig från −2,5 (lägst risk) till +2,5 (högst risk) och visas som "
+            "legend längst ner i kartan. Hovra över en kommun för detaljerad information om "
+            "KRI-poäng, rang, skuld per capita, arbetslöshet, befolkningstillväxt och skattekraft. "
+            "Kartan kan panoreras och zoomas. Riskfiltret i sidopanelen påverkar vilka kommuner "
+            "som inkluderas i beräkningarna ovan, men kartan visar alltid det valda årets data."
         )
 
 with dist_col:
@@ -356,7 +355,7 @@ with dist_col:
         _show_raw = _dist_view == "Skuld per capita (rådata)"
         st.markdown(
             render_card_header(
-                "KRI-fördelning" if not _show_raw else "Skuld per capita — rådata",
+                "KRI-fördelning" if not _show_raw else "Skuld per capita (rådata)",
                 ("Fördelning av z-poäng över 290 kommuner" if not _show_raw
                  else "Fördelning av råvärden före normalisering"),
                 "Histogram",
@@ -376,7 +375,7 @@ with dist_col:
             "av fem indikatorer (skuld, arbetslöshet, försörjningskvot, befolkningstillväxt, "
             "skattekraft). Värden nära 0 är genomsnittliga; negativa värden indikerar lägre risk "
             "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk (KRI < −0,67), "
-            "gula = medel, röda = hög (KRI > +0,67). Den streckade linjen visar medianen. — "
+            "gula = medel, röda = hög (KRI > +0,67). Den streckade linjen visar medianen. "
             "**Rådata (skuld)** visar skuld per capita i kronor *innan* z-poängsnormalisering, "
             "vilket illustrerar hur indexet omvandlar absoluta värden till jämförbara poäng."
         )
@@ -421,7 +420,7 @@ with st.expander("ℹ️ Om rankningstabellerna", expanded=False):
     st.caption(
         "**Topp 15 högst risk** visar de 15 kommuner med lägst rang (rang 1 = mest sårbar) för "
         "valt år. **Topp 15 lägst risk** visar de 15 mest robusta kommunerna. KRI Poäng är det "
-        "sammansatta z-poängindexet — ju högre värde, desto större strukturell sårbarhet. "
+        "sammansatta z-poängindexet: ju högre värde, desto större strukturell sårbarhet. "
         "Riskklassen baseras på kvartilar: kommuner under 25:e percentilen klassas som Låg risk, "
         "kommuner över 75:e percentilen som Hög risk."
     )

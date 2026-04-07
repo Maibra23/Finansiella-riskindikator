@@ -50,17 +50,16 @@ st.sidebar.markdown(
     """,
     unsafe_allow_html=True,
 )
+st.sidebar.page_link("main.py", label="Startsida")
 nav_items = [
-    ("01", "riksoversikt.py", "Riksöversikt"),
-    ("02", "riskdekomposition.py", "Riskdekomposition"),
-    ("03", "kommunanalys.py", "Kommunanalys"),
-    ("04", None, "Metod & källor"),
+    ("riksoversikt.py", "Riksöversikt"),
+    ("riskdekomposition.py", "Riskdekomposition"),
+    ("kommunanalys.py", "Kommunanalys"),
 ]
-for num, fname, title in nav_items:
-    if fname and (pages_dir / fname).exists():
+for fname, title in nav_items:
+    if (pages_dir / fname).exists():
         st.sidebar.page_link(f"pages/{fname}", label=title)
-    else:
-        st.sidebar.caption(f"{title}, kommer snart")
+st.sidebar.caption("Metod & källor, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
