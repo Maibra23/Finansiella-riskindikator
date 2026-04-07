@@ -332,7 +332,7 @@ with map_col:
             unsafe_allow_html=True,
         )
         render_choropleth(filtered_df, selected_year, height=440)
-    with st.expander("ℹ️ Om kartan", expanded=False):
+    with st.expander("Om kartan", expanded=False):
         st.caption(
             "**Geografisk fördelning** visar varje kommuns geografiska polygon fylld med en färg "
             "som återger KRI-poängen: **grön** = låg risk, **gul** = medel, **röd** = hög. "
@@ -369,7 +369,7 @@ with dist_col:
         else:
             hist_opt = build_distribution_histogram(scores, median_kri)
             st_echarts(options=hist_opt, height="400px", key=f"dist_{selected_year}_{_risk_key}")
-    with st.expander("ℹ️ Om fördelningsgrafen", expanded=False):
+    with st.expander("Om fördelningsgrafen", expanded=False):
         st.caption(
             "**Normaliserad KRI** visar det sammansatta riskindexet som viktat z-poänggenomsnitt "
             "av fem indikatorer (skuld, arbetslöshet, försörjningskvot, befolkningstillväxt, "
@@ -416,7 +416,7 @@ def _table_html(df: pd.DataFrame) -> str:
     )
 
 
-with st.expander("ℹ️ Om rankningstabellerna", expanded=False):
+with st.expander("Om rankningstabellerna", expanded=False):
     st.caption(
         "**Topp 15 högst risk** visar de 15 kommuner med lägst rang (rang 1 = mest sårbar) för "
         "valt år. **Topp 15 lägst risk** visar de 15 mest robusta kommunerna. KRI Poäng är det "
