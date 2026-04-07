@@ -221,10 +221,10 @@ def main(use_cache: bool = True):
         print("          May need to adjust KRI weights or exclude variables")
         status_code = 0  # Still success, but with warnings
 
-    print("\n  KNOWN DATA LIMITATIONS (see METHODOLOGY.md section 7):")
-    print("    - Kolada API has limited historical coverage for unemployment")
-    print("    - Dependency ratio data limited to 2010-2011 from Kolada")
-    print("    - SCB-based variables (debt, population, tax_base) have full coverage")
+    print("\n  DATA SOURCES:")
+    print("    - Unemployment: Kolada N03937 (Arbetsförmedlingen), 2010-2024 full coverage")
+    print("    - Dependency ratio: SCB BefolkningNy age-specific data, 2010-2024 full coverage")
+    print("    - Debt, population growth, tax base: SCB, 2010-2024 full coverage")
 
     return status_code
 
