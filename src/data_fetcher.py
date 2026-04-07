@@ -22,7 +22,6 @@ from src.config import (
     SCB_API_URLS,
     KOLADA_API_BASE,
     KOLADA_UNEMPLOYMENT_KPIS,
-    KOLADA_WORKING_AGE_KPI,
     YEARS,
     YEARS_STR,
     POPULATION_YEARS_STR,
@@ -568,6 +567,104 @@ class SCBFetcher:
 
         return df
 
+    def fetch_population_by_age_groups(self) -> pd.DataFrame:
+        """
+        Fetch population by individual ages for dependency ratio computation.
+
+        Requests ages in batches from SCB BefolkningNy (eliminating gender and
+        marital status to stay within SCB's 150,000 cell limit) so the cleaner
+        can aggregate into young (0-19), working (20-64), and old (65+) groups.
+
+        Returns:
+            DataFrame with columns: municipality_code, municipality_name,
+            age, year, value (population count per single-year age)
+        """
+        table_name = "population_by_age"
+
+        cached = self._load_from_cache(table_name)
+        if cached is not None:
+            return cached
+
+        url = SCB_API_URLS["population"]
+
+        # SCB limit: 150,000 cells per request.
+        # ~312 regions * 15 years * 1 content = 4,680 per age.
+        # 150,000 / 4,680 = ~32 ages per batch. Use 30 for safety.
+        all_ages = [str(a) for a in range(0, 100)] + ["100+"]
+        batch_size = 30
+
+        all_dfs = []
+        for i in range(0, len(all_ages), batch_size):
+            age_batch = all_ages[i:i + batch_size]
+            batch_label = f"population_by_age_batch_{i // batch_size + 1}"
+
+            query = {
+                "query": [
+                    {
+                        "code": "Region",
+                        "selection": {
+                            "filter": "all",
+                            "values": ["*"]
+                        }
+                    },
+                    {
+                        "code": "Alder",
+                        "selection": {
+                            "filter": "item",
+                            "values": age_batch
+                        }
+                    },
+                    {
+                        "code": "ContentsCode",
+                        "selection": {
+                            "filter": "item",
+                            "values": ["BE0101N1"]
+                        }
+                    },
+                    {
+                        "code": "Tid",
+                        "selection": {
+                            "filter": "item",
+                            "values": YEARS_STR
+                        }
+                    }
+                ],
+                "response": {"format": "json"}
+            }
+
+            data = self._make_request(url, query, batch_label)
+
+            df_batch = self._parse_json_stat(data)
+
+            if not df_batch.empty:
+                all_dfs.append(df_batch)
+
+            time.sleep(REQUEST_DELAY)
+
+        if not all_dfs:
+            logger.warning("Population by age query returned empty data")
+            return pd.DataFrame()
+
+        df = pd.concat(all_dfs, ignore_index=True)
+
+        self._save_raw_response({"info": "batched age data", "total_rows": len(df)}, table_name)
+
+        col_mapping = {
+            "Region": "municipality_code",
+            "Alder": "age",
+            "Kon": "sex",
+            "Tid": "year"
+        }
+        df = df.rename(columns={k: v for k, v in col_mapping.items() if k in df.columns})
+
+        df["municipality_name"] = df["municipality_code"].map(MUNICIPALITIES)
+        df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+
+        self._save_to_cache(df, table_name)
+
+        return df
+
     def fetch_tax_base(self) -> pd.DataFrame:
         """
         Fetch tax base strength (share of national average) for all municipalities.
@@ -999,7 +1096,10 @@ class KoladaFetcher:
         years: Optional[List[int]] = None
     ) -> pd.DataFrame:
         """
-        Fetch data for a specific KPI for all municipalities.
+        Fetch data for a specific KPI for all municipalities with pagination.
+
+        Kolada API returns max 5000 records per page. This method follows
+        next_page links to retrieve all data.
 
         Args:
             kpi_id: Kolada KPI identifier
@@ -1013,30 +1113,44 @@ class KoladaFetcher:
 
         years_str = ",".join(str(y) for y in years)
 
-        # Kolada API allows fetching all municipalities at once
         url = f"{self.base_url}data/kpi/{kpi_id}/year/{years_str}"
 
-        data = self._make_request(url, f"kpi_{kpi_id}")
-        self._save_raw_response(data, f"kpi_{kpi_id}")
+        all_values = []
+        page = 1
 
-        # Parse response
-        values = data.get("values", [])
+        while url:
+            data = self._make_request(url, f"kpi_{kpi_id}_page{page}")
 
-        if not values:
+            if page == 1:
+                self._save_raw_response(data, f"kpi_{kpi_id}")
+
+            values = data.get("values", [])
+            all_values.extend(values)
+
+            next_page = data.get("next_page", "")
+            if next_page:
+                url = next_page
+                page += 1
+                logger.info(f"Fetching page {page} for KPI {kpi_id}...")
+                time.sleep(REQUEST_DELAY)
+            else:
+                url = None
+
+        if not all_values:
             logger.warning(f"No data found for KPI {kpi_id}")
             return pd.DataFrame(columns=["municipality_code", "year", "value"])
 
+        logger.info(f"Total records fetched for KPI {kpi_id}: {len(all_values)}")
+
         rows = []
-        for item in values:
+        for item in all_values:
             municipality = item.get("municipality", "")
             period = item.get("period", "")
 
-            # Get the value - Kolada returns values array with gender breakdown
-            # We want the total (gender = "T")
             item_values = item.get("values", [])
 
             for val in item_values:
-                if val.get("gender") == "T":  # Total
+                if val.get("gender") == "T":
                     rows.append({
                         "municipality_code": municipality,
                         "year": int(period) if period else None,
@@ -1044,7 +1158,6 @@ class KoladaFetcher:
                     })
                     break
             else:
-                # If no total, use first available value
                 if item_values:
                     rows.append({
                         "municipality_code": municipality,
@@ -1054,7 +1167,6 @@ class KoladaFetcher:
 
         df = pd.DataFrame(rows)
 
-        # Add municipality names
         df["municipality_name"] = df["municipality_code"].map(MUNICIPALITIES)
 
         return df
@@ -1133,52 +1245,6 @@ class KoladaFetcher:
 
         return df
 
-    def fetch_working_age_population(self) -> pd.DataFrame:
-        """
-        Fetch working-age population percentage (20-64 years) for all municipalities.
-
-        This is used to compute the dependency ratio:
-        dependency_ratio = (100 - working_age_pct) / working_age_pct * 100
-
-        Returns:
-            DataFrame with columns: municipality_code, municipality_name, year, working_age_pct
-        """
-        table_name = "working_age"
-
-        # Check cache first
-        cached = self._load_from_cache(table_name)
-        if cached is not None:
-            return cached
-
-        logger.info(f"Fetching working-age population data using KPI {KOLADA_WORKING_AGE_KPI}")
-
-        try:
-            df = self.fetch_kpi_data(KOLADA_WORKING_AGE_KPI)
-
-            if df.empty or df["value"].notna().sum() == 0:
-                raise KoladaAPIError(f"No data found for working-age KPI {KOLADA_WORKING_AGE_KPI}")
-
-            # Rename value column
-            df = df.rename(columns={"value": "working_age_pct"})
-
-            # Ensure correct types
-            df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
-            df["working_age_pct"] = pd.to_numeric(df["working_age_pct"], errors="coerce")
-
-            # Filter to our year range
-            df = df[(df["year"] >= START_YEAR) & (df["year"] <= END_YEAR)]
-
-            # Save to cache
-            self._save_to_cache(df, table_name)
-
-            time.sleep(REQUEST_DELAY)
-
-            return df
-
-        except KoladaAPIError as e:
-            logger.error(f"Failed to fetch working-age population data: {e}")
-            raise
-
     def clear_cache(self) -> None:
         """Clear all Kolada cached data files."""
         for cache_file in self.cache_dir.glob("kolada_*.parquet"):
@@ -1227,7 +1293,8 @@ def fetch_all_data(use_cache: bool = True) -> Dict[str, pd.DataFrame]:
     Returns:
         Dictionary with all DataFrames needed for KRI computation:
         - balance_sheet, population, tax_base, income_statement, tax_rate (from SCB)
-        - unemployment, working_age (from Kolada)
+        - population_by_age (from SCB, for dependency ratio)
+        - unemployment (from Kolada/Arbetsförmedlingen)
     """
     logger.info("Fetching all data from SCB and Kolada...")
 
@@ -1235,18 +1302,17 @@ def fetch_all_data(use_cache: bool = True) -> Dict[str, pd.DataFrame]:
     scb_fetcher = SCBFetcher(use_cache=use_cache)
     results = scb_fetcher.fetch_all()
 
-    # Fetch Kolada data
-    kolada_fetcher = KoladaFetcher(use_cache=use_cache)
+    # Fetch age-specific population from SCB for dependency ratio
+    logger.info("Fetching population by age groups for dependency ratio...")
+    results["population_by_age"] = scb_fetcher.fetch_population_by_age_groups()
+    logger.info(f"  population_by_age: {len(results['population_by_age'])} rows, "
+                f"{results['population_by_age']['municipality_code'].nunique()} municipalities")
 
-    # Fetch unemployment data
+    # Fetch unemployment data from Kolada (Arbetsförmedlingen source)
+    kolada_fetcher = KoladaFetcher(use_cache=use_cache)
     results["unemployment"] = kolada_fetcher.fetch_unemployment()
     logger.info(f"  unemployment: {len(results['unemployment'])} rows, "
                 f"{results['unemployment']['municipality_code'].nunique()} municipalities")
-
-    # Fetch working-age population for dependency ratio
-    results["working_age"] = kolada_fetcher.fetch_working_age_population()
-    logger.info(f"  working_age: {len(results['working_age'])} rows, "
-                f"{results['working_age']['municipality_code'].nunique()} municipalities")
 
     logger.info("Successfully fetched all data")
 
