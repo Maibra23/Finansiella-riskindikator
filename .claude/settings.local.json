@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python -c \"from src.config import MUNICIPALITIES, WEIGHTS, SWEDISH_LABELS, COLORS, SCB_API_BASE, KOLADA_API_BASE, START_YEAR, END_YEAR; print\\(f''Municipalities: {len\\(MUNICIPALITIES\\)}''\\); print\\(f''Weights sum: {sum\\(WEIGHTS.values\\(\\)\\)}''\\); print\\(f''Swedish labels: {len\\(SWEDISH_LABELS\\)}''\\); print\\(f''Colors: {len\\(COLORS\\)}''\\); print\\(f''Period: {START_YEAR}-{END_YEAR}''\\)\")",
       "Bash(python:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
