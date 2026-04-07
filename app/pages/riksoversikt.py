@@ -21,6 +21,7 @@ from app.components.charts import build_distribution_histogram
 from app.components.sweden_map import render_sweden_map
 from app.styles.theme import (
     apply_streamlit_theme,
+    format_swedish_int,
     render_card_header,
     render_kpi_card,
     render_page_header,
@@ -53,9 +54,9 @@ nav_items = [
 ]
 for num, fname, title in nav_items:
     if fname and (pages_dir / fname).exists():
-        st.sidebar.page_link(f"pages/{fname}", label=f"{num}  {title}")
+        st.sidebar.page_link(f"pages/{fname}", label=title)
     else:
-        st.sidebar.caption(f"{num}  {title}, kommer snart")
+        st.sidebar.caption(f"{title}, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -164,17 +165,17 @@ def _fmt_decimal(val: float, nd: int = 2) -> str:
 
 
 def _fmt_int_space(n: float) -> str:
-    """Integer with narrow no-break space as thousands separator."""
-    return f"{int(round(n)):,}".replace(",", "\u202f")
+    """Integer with Swedish thousands grouping (delegates to theme helper)."""
+    return format_swedish_int(n)
 
 
-def _delta_kri_mean() -> tuple[str, str]:
+def _delta_kri_median() -> tuple[str, str]:
     if prev_df.empty:
         return ("", "flat")
-    cur = float(year_df["kri_score"].mean())
-    prv = float(prev_df["kri_score"].mean())
+    cur = float(filtered_df["kri_score"].median()) if len(filtered_df) else 0.0
+    prv = float(prev_df["kri_score"].median())
     d = cur - prv
-    if abs(d) < 1e-9:
+    if abs(d) < 0.005:
         return ("Oförändrat mot föregående år", "flat")
     sign = "+" if d > 0 else ""
     txt = f"{sign}{_fmt_decimal(d, 2)} mot {prev_year}"
@@ -185,7 +186,7 @@ def _delta_kri_mean() -> tuple[str, str]:
 def _delta_high_risk() -> tuple[str, str]:
     if prev_df.empty:
         return ("", "flat")
-    cur = int((year_df["risk_class"] == "Hög").sum())
+    cur = int((filtered_df["risk_class"] == "Hög").sum())
     prv = int((prev_df["risk_class"] == "Hög").sum())
     d = cur - prv
     if d == 0:
@@ -197,9 +198,9 @@ def _delta_high_risk() -> tuple[str, str]:
 
 
 def _delta_median_debt_pct() -> tuple[str, str]:
-    if prev_df.empty:
+    if prev_df.empty or filtered_df.empty:
         return ("", "flat")
-    cur = float(year_df["debt_per_capita"].median())
+    cur = float(filtered_df["debt_per_capita"].median())
     prv = float(prev_df["debt_per_capita"].median())
     if prv == 0:
         return ("", "flat")
@@ -213,12 +214,12 @@ def _delta_median_debt_pct() -> tuple[str, str]:
 
 
 def _delta_pop_mean() -> tuple[str, str]:
-    if prev_df.empty:
+    if prev_df.empty or filtered_df.empty:
         return ("", "flat")
-    cur = float(year_df["population_growth"].mean())
+    cur = float(filtered_df["population_growth"].mean())
     prv = float(prev_df["population_growth"].mean())
     d = cur - prv
-    if abs(d) < 1e-9:
+    if abs(d) < 0.005:
         return ("Oförändrat mot föregående år", "flat")
     sign = "+" if d > 0 else ""
     txt = f"{sign}{_fmt_decimal(d, 2)} pe mot {prev_year}"
@@ -244,12 +245,12 @@ st.markdown(
 # Section B — KPI row
 # ---------------------------------------------------------------------------
 
-avg_kri = float(year_df["kri_score"].mean())
-high_risk_count = int((year_df["risk_class"] == "Hög").sum())
-median_debt = float(year_df["debt_per_capita"].median())
-pop_change = float(year_df["population_growth"].mean())
+median_kri_val = float(filtered_df["kri_score"].median()) if len(filtered_df) else 0.0
+high_risk_count = int((filtered_df["risk_class"] == "Hög").sum())
+median_debt = float(filtered_df["debt_per_capita"].median()) if len(filtered_df) else 0.0
+pop_change = float(filtered_df["population_growth"].mean()) if len(filtered_df) else 0.0
 
-d1, dir1 = _delta_kri_mean()
+d1, dir1 = _delta_kri_median()
 d2, dir2 = _delta_high_risk()
 d3, dir3 = _delta_median_debt_pct()
 d4, dir4 = _delta_pop_mean()
@@ -259,8 +260,8 @@ kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
 with kpi_col1:
     st.markdown(
         render_kpi_card(
-            label=SWEDISH_LABELS["average_kri"],
-            value=_fmt_decimal(avg_kri, 2),
+            label="Median KRI",
+            value=_fmt_decimal(median_kri_val, 2),
             unit=" std",
             delta=d1 or "Saknas",
             delta_direction=dir1,
@@ -273,7 +274,7 @@ with kpi_col2:
         render_kpi_card(
             label=SWEDISH_LABELS["high_risk_count"],
             value=str(high_risk_count),
-            unit=" / 290",
+            unit=f" / {len(filtered_df)}",
             delta=d2 or "Saknas",
             delta_direction=dir2,
             variant="danger",

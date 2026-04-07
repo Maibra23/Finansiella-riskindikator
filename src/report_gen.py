@@ -422,7 +422,7 @@ def _page1_cover(canvas: Any, doc: Any, report_year: int) -> None:
     canvas.setFont("Helvetica", 9.5)
     canvas.setFillColor(colors.HexColor("#9CA3AF"))
     today = date.today().strftime("%d %B %Y").lstrip("0")
-    canvas.drawString(tx, 2.6 * cm, f"Analysperiod: 2010–{report_year}")
+    canvas.drawString(tx, 2.6 * cm, f"Analysperiod: 2010 till {report_year}")
     canvas.drawString(tx, 1.9 * cm, f"Publicerad: {today}")
     canvas.drawString(tx, 1.2 * cm, "Källa: SCB, Arbetsförmedlingen/Kolada")
 
@@ -481,6 +481,10 @@ def generate_report(
     )
     kri_scores_list = latest["kri_score"].tolist()
 
+    yr_min = int(kri_df["year"].min())
+    yr_max = int(kri_df["year"].max())
+    n_obs = len(kri_df)
+
     # ---------- Build PDF in-memory ----------
     buf = io.BytesIO()
 
@@ -532,11 +536,11 @@ def generate_report(
     intro = (
         f"Kommunal Finansiell Riskindikator (KRI) rangordnar alla Sveriges 290 kommuner "
         f"utifrån ett sammansatt index för strukturell ekonomisk sårbarhet. Indexet kombinerar "
-        f"fem nyckelvariabler — skuld per capita, arbetslöshet, försörjningskvot, "
-        f"befolkningstillväxt och skattekraft — viktade enligt deras prognostiska relevans "
-        f"för kommunal finansiell stabilitet. Analysperioden omfattar 2010–{report_year}, "
-        f"vilket inkluderar ett fullt konjunkturcykel med pandemiåren 2020–2021 och "
-        f"inflationschocken 2022–2023."
+        f"fem nyckelvariabler: skuld per capita, arbetslöshet, försörjningskvot, "
+        f"befolkningstillväxt och skattekraft, viktade enligt deras prognostiska relevans "
+        f"för kommunal finansiell stabilitet. Analysperioden omfattar åren 2010 till {report_year}, "
+        f"vilket inkluderar en full konjunkturcykel med pandemiåren 2020 och 2021 samt "
+        f"inflationschocken under 2022 och 2023."
     )
     story.append(Paragraph(intro, S["body"]))
     story.append(Spacer(1, 10))
@@ -584,8 +588,8 @@ def generate_report(
         "hög arbetslöshet och en åldrande befolkning med låg skattekraft.",
         "Storstadskommuner och förorter med stark skattebas (t.ex. Danderyd, Täby, Solna) "
         "uppvisar genomgående låg risk under hela analysperioden.",
-        "Covid-pandemin 2020 medförde ett tillfälligt trendbrott där högrisk-kommuner "
-        "ökade kraftigt, följt av en partiell återhämtning 2021–2022.",
+        "Covidpandemin 2020 medförde ett tillfälligt trendbrott där kommuner med högrisk "
+        "ökade kraftigt, följt av en partiell återhämtning mellan 2021 och 2022.",
     ]
     for f in findings:
         story.append(Paragraph(f"• {f}", S["body"]))
@@ -615,7 +619,7 @@ def generate_report(
     story.append(Paragraph("Indexkonstruktion", S["h2"]))
     story.append(Paragraph(
         "KRI beräknas i fyra steg: (1) insamling av årsdata för fem variabler från SCB och "
-        "Arbetsförmedlingen/Kolada, (2) tvärsektionell z-poängs-normalisering för alla kommuner "
+        "Arbetsförmedlingen/Kolada, (2) tvärsektionell normalisering med z poäng för alla kommuner "
         "inom respektive år, (3) riktningskorrigering så att högt värde alltid innebär hög risk, "
         "samt (4) viktad summering till ett sammansatt index. Formeln är:",
         S["body"],
@@ -627,7 +631,7 @@ def generate_report(
     ))
     story.append(Paragraph(
         "där i = kommun, t = år, w<sub>k</sub> = variabelns vikt och "
-        "z<sub>k</sub> = riktningskorrigerat z-poäng.",
+        "z<sub>k</sub> = riktningskorrigerat z poäng.",
         S["body"],
     ))
 
@@ -666,7 +670,7 @@ def generate_report(
     story.append(Paragraph("Klassificering", S["h2"]))
     story.append(Paragraph(
         "Kommuner klassificeras baserat på kvantilandelar inom varje år: kommuner med KRI "
-        "under 25:e percentilen = Låg risk (grön), 25–75:e percentilen = Medel risk (gul), "
+        "under 25:e percentilen = Låg risk (grön), mellan 25:e och 75:e percentilen = Medel risk (gul), "
         "över 75:e percentilen = Hög risk (röd). Klassificeringen är relativ och stabil "
         "mot extremvärden.",
         S["body"],
@@ -674,8 +678,8 @@ def generate_report(
 
     story.append(Paragraph("Datakvalitet", S["h2"]))
     story.append(Paragraph(
-        "Samtliga 290 kommuner har kompletta tidsserier för analysperioden 2010–2024 (4 350 "
-        "observationer, 0 saknade värden). Gotland (0980) flaggas för delad "
+        f"Samtliga 290 kommuner har kompletta tidsserier för analysperioden {yr_min} till {yr_max} "
+        f"({n_obs} observationer, 0 saknade värden). Gotland (0980) flaggas för delad "
         "redovisning mellan kommunen och regionen; skuld justeras med faktorn 0,65. "
         "Knivsta (0330) bildades 2003 och har begränsad historik.",
         S["body"],
@@ -704,8 +708,8 @@ def generate_report(
     story.append(charts_table)
 
     chart_labels = Table(
-        [[Paragraph("Fördelning av KRI-poäng 2024", S["small"]),
-          Paragraph("Rikssnitt KRI 2010–2024", S["small"])]],
+        [[Paragraph(f"Fördelning av KRI poäng {report_year}", S["small"]),
+          Paragraph(f"Rikssnitt KRI {yr_min} till {yr_max}", S["small"])]],
         colWidths=[chart_col_w + 0.3 * cm, chart_col_w],
     )
     chart_labels.setStyle(TableStyle([
@@ -732,13 +736,13 @@ def generate_report(
     story.append(Paragraph("Huvudslutsatser", S["h2"]))
     conclusions = [
         f"Strukturell ekonomisk sårbarhet bland svenska kommuner är bestående och geografiskt "
-        f"koncentrerad. Högrisk-kommuner återfinns systematiskt i glesbygd och bruksorter, "
-        f"medan lågrisk-kommuner domineras av storstadsförorter med stark skattebas.",
-        "Skuld per capita och arbetslöshet förklarar sammantaget 50 % av KRI-variansen och "
+        f"koncentrerad. Kommuner med högrisk återfinns systematiskt i glesbygd och bruksorter, "
+        f"medan kommuner med lågrisk domineras av storstadsförorter med stark skattebas.",
+        "Skuld per capita och arbetslöshet förklarar sammantaget 50 % av variansen i KRI och "
         "är de starkaste riskdrivarna.",
-        f"Pandemin 2020 gav en tydlig negativ impuls — andelen högrisk-kommuner ökade under "
-        f"2020–2021 — men de flesta kommuner återhämtade sig till 2022.",
-        "Tidsseriestabilitet är hög (år-till-år-korrelation > 0,85), vilket bekräftar att "
+        f"Pandemin 2020 gav en tydlig negativ impuls: andelen kommuner med högrisk ökade under "
+        f"2020 och 2021, men de flesta kommuner återhämtade sig till 2022.",
+        "Tidsseriestabilitet är hög (korrelation mellan på varandra följande år > 0,85), vilket bekräftar att "
         "KRI mäter strukturell, inte konjunkturell, sårbarhet.",
     ]
     for c in conclusions:
@@ -755,7 +759,7 @@ def generate_report(
 
     story.append(Paragraph("Begränsningar", S["h2"]))
     limitations = [
-        "KRI är ett relativ index — ett kommuner som förbättras kan få ett höjt KRI om "
+        "KRI är ett relativt index: en kommun som förbättras kan få ett höjt KRI om "
         "omgivande kommuner förbättras ännu mer.",
         "Indexet inkluderar inte externa faktorer som statsbidrag, exploateringsintäkter "
         "eller extraordinära händelser.",
@@ -769,10 +773,10 @@ def generate_report(
     story.append(Paragraph("Förslag till vidare analys", S["h2"]))
     story.append(Paragraph(
         "Framtida versioner av KRI bör utökas med: (1) soliditet och kassalikviditet som "
-        "kompletterande variabler, (2) prognos-komponent baserad på demografiska framskrivningar, "
-        "(3) regional aggregering för länsnivå-analys, samt (4) jämförelse med Norden. "
+        "kompletterande variabler, (2) prognoskomponent baserad på demografiska framskrivningar, "
+        "(3) regional aggregering för länsnivåanalys, samt (4) jämförelse med Norden. "
         "En paneldataregressionsanalys av KRI mot faktiska betalningsinställelser och "
-        "lånerating-förändringar skulle stärka indexets prediktiva validitet.",
+        "förändringar av lånerating skulle stärka indexets prediktiva validitet.",
         S["body"],
     ))
 
@@ -781,7 +785,7 @@ def generate_report(
     story.append(Paragraph(
         "Källa: SCB Statistikdatabasen (BalansKn, BefolkningNy, SkatteKraft), "
         "Arbetsförmedlingen via Kolada API (N03937). "
-        f"Rapport genererad {date.today().strftime('%Y-%m-%d')}.",
+        f"Rapport genererad {date.today().strftime('%d.%m.%Y')}.",
         S["small"],
     ))
 

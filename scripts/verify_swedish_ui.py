@@ -5,6 +5,11 @@ scripts/verify_swedish_ui.py
 Scan all Streamlit UI files under app/ for user-facing English text and
 for typographic dashes (em/en dash) that must not appear in UI copy.
 
+Numeric ranges and count notation (e.g. years, KRI spans, x of 290) must use
+ASCII hyphen-minus (U+002D) with spaces, e.g. "2010 - 2024", "-1,37 - 1,17",
+"73 - 290". Do not use the word "till" between two numbers, and do not use
+slash "a / b" for those counts in user-visible strings.
+
 Only checks strings that are actually shown to the end user (under app/).
 Skips docstrings, DataFrame column names used internally, CSS fragments
 inside theme strings, and Streamlit API keys.
@@ -89,6 +94,16 @@ class Violation:
                 f"  {self.file}:{self.line}:{self.col}  "
                 f'Typographic dash "{self.word}" in UI string: {self.snippet!r}'
             )
+        if self.kind == "range_till":
+            return (
+                f"  {self.file}:{self.line}:{self.col}  "
+                f'Numeric range must use ASCII hyphen (e.g. "a - b"), not "till": {self.snippet!r}'
+            )
+        if self.kind == "count_slash":
+            return (
+                f"  {self.file}:{self.line}:{self.col}  "
+                f'Count or pair of integers must use ASCII hyphen (e.g. "n - 290"), not slash: {self.snippet!r}'
+            )
         return (
             f"  {self.file}:{self.line}:{self.col}  "
             f'English word "{self.word}" in: {self.snippet!r}'
@@ -130,10 +145,42 @@ def _is_css_or_comment_fragment(raw: str) -> bool:
     return False
 
 
+# Two numbers (optional leading minus, Swedish decimal comma / narrow space) with "till" between.
+_RE_NUM_TILL_NUM = re.compile(r"-?\d[\d,\u202f]*\s+till\s+-?\d[\d,\u202f]*")
+
+# Integer / integer in user-facing count style (e.g. 73 / 290); not code like "x / y * z".
+_RE_COUNT_SLASH = re.compile(r"\b\d{1,4}\s*/\s*\d{1,4}\b")
+
+
+def _check_numeric_separators(raw: str, filepath: str, lineno: int, col: int) -> list[Violation]:
+    """
+    Enforce ASCII hyphen for numeric ranges and paired counts in visible copy.
+    Prose uses of "till" (e.g. "omräknas till z-poäng") are unaffected.
+    """
+    if not raw or _should_skip(raw) or _is_css_or_comment_fragment(raw):
+        return []
+
+    violations: list[Violation] = []
+    snippet = raw[:100].replace("\n", " ")
+
+    if _RE_NUM_TILL_NUM.search(raw):
+        violations.append(
+            Violation(filepath, lineno, col, snippet, "till", kind="range_till")
+        )
+
+    if _RE_COUNT_SLASH.search(raw):
+        violations.append(
+            Violation(filepath, lineno, col, snippet, "/", kind="count_slash")
+        )
+
+    return violations
+
+
 def _check_dashes(raw: str, filepath: str, lineno: int, col: int) -> list[Violation]:
     """
     Forbid Unicode em dash (U+2014) and en dash (U+2013) in user-facing copy.
-    ASCII hyphen in compounds (e.g. z-poäng, KPI-rad) remains allowed.
+    ASCII hyphen-minus (U+002D) is allowed, including spaced numeric ranges
+    (e.g. KRI-intervall, årtal, antal - total).
     """
     if not raw or _should_skip(raw) or _is_css_or_comment_fragment(raw):
         return []
@@ -267,6 +314,11 @@ def _walk_user_facing(tree: ast.Module, filepath: str) -> list[Violation]:
             violations.extend(
                 _check_dashes(node.value, filepath, node.lineno, node.col_offset)
             )
+            violations.extend(
+                _check_numeric_separators(
+                    node.value, filepath, node.lineno, node.col_offset
+                )
+            )
 
         elif isinstance(node, ast.JoinedStr):
             for val in node.values:
@@ -279,6 +331,11 @@ def _walk_user_facing(tree: ast.Module, filepath: str) -> list[Violation]:
                     )
                     violations.extend(
                         _check_dashes(val.value, filepath, val.lineno, val.col_offset)
+                    )
+                    violations.extend(
+                        _check_numeric_separators(
+                            val.value, filepath, val.lineno, val.col_offset
+                        )
                     )
 
     return violations

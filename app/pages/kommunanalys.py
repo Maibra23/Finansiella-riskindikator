@@ -20,13 +20,14 @@ from streamlit_echarts import st_echarts
 from app.components.charts import build_line_trend
 from app.styles.theme import (
     apply_streamlit_theme,
+    format_swedish_int,
     render_card_header,
     render_kpi_card,
     render_page_header,
 )
 from src.clustering import get_peer_municipalities
 from src.config import MUNICIPALITIES, SWEDISH_LABELS
-from src.validators import get_data_quality_summary, get_municipality_flags
+from src.validators import get_municipality_flags
 
 # ---------------------------------------------------------------------------
 # Page setup
@@ -56,9 +57,9 @@ nav_items = [
 ]
 for num, fname, title in nav_items:
     if fname and (pages_dir / fname).exists():
-        st.sidebar.page_link(f"pages/{fname}", label=f"{num}  {title}")
+        st.sidebar.page_link(f"pages/{fname}", label=title)
     else:
-        st.sidebar.caption(f"{num}  {title}, kommer snart")
+        st.sidebar.caption(f"{title}, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -167,7 +168,7 @@ def _delta_info(
 ) -> tuple[str, str]:
     """Return (delta_str, delta_direction) for render_kpi_card."""
     if prev_val is None or pd.isna(prev_val):
-        return "–", "flat"
+        return "-", "flat"
     diff = current_val - prev_val
     sign = "+" if diff >= 0 else ""
     delta_str = f"{sign}{diff:.2f}"
@@ -208,7 +209,7 @@ kpi_defs: list[tuple[str, str, str, str, str, str]] = [
     ),
     (
         SWEDISH_LABELS["debt_per_capita"],
-        f"{float(sel_row['debt_per_capita']):,.0f}".replace(",", "\u202f"),
+        format_swedish_int(float(sel_row["debt_per_capita"])),
         SWEDISH_LABELS["kr"],
         *_delta_info(float(sel_row["debt_per_capita"]), _pv("debt_per_capita"), higher_is_worse=True),
         "danger",
@@ -242,6 +243,12 @@ for col, (label, value, unit, delta_str, delta_dir, variant) in zip(kpi_cols, kp
             unsafe_allow_html=True,
         )
 
+st.caption(
+    "Nyckeltal för valt år jämfört med föregående år. "
+    "Högre KRI, högre skuld, högre arbetslöshet, högre försörjningskvot och lägre skattekraft "
+    "anger i regel högre strukturell sårbarhet (utom skattekraft där lägre än rikssnitt är sämre)."
+)
+
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -249,7 +256,7 @@ st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 st.markdown(render_card_header(
-    title="KRI-trend 2010–2024",
+    title="KRI-trend 2010 - 2024",
     subtitle=f"Historisk KRI-poäng för {selected_name} jämfört med rikssnittet",
     tag="Tidserie",
 ), unsafe_allow_html=True)
@@ -280,38 +287,75 @@ st.markdown(render_card_header(
     tag="Peer-analys",
 ), unsafe_allow_html=True)
 
+def _highlight_extremes(s: pd.Series, higher_is_worse: bool = True) -> list[str]:
+    """Return background-color styles: red-tinted for worst, green-tinted for best."""
+    if s.dtype.kind not in "iufb" or s.isna().all():
+        return [""] * len(s)
+    styles = [""] * len(s)
+    v_min_idx = s.idxmin()
+    v_max_idx = s.idxmax()
+    if v_min_idx == v_max_idx:
+        return styles
+    worst_bg = "background-color: rgba(185, 74, 72, 0.12)"
+    best_bg = "background-color: rgba(46, 125, 91, 0.12)"
+    if higher_is_worse:
+        styles[s.index.get_loc(v_max_idx)] = worst_bg
+        styles[s.index.get_loc(v_min_idx)] = best_bg
+    else:
+        styles[s.index.get_loc(v_min_idx)] = worst_bg
+        styles[s.index.get_loc(v_max_idx)] = best_bg
+    return styles
+
+
 try:
     peer_df = get_peer_municipalities(selected_code, kri_df, n=10, year=selected_year)
     if not peer_df.empty:
-        # Join raw indicator columns from kri_df
         extra_cols = ["municipality_code", "rank", "debt_per_capita", "unemployment",
                       "dependency_ratio", "population_growth", "tax_base_relative"]
         extra = kri_df[kri_df["year"] == selected_year][extra_cols].copy()
         peer_df = peer_df.merge(extra, on="municipality_code", how="left")
 
         display_peers = peer_df.copy()
-        display_peers["Rang"] = display_peers["rank"].astype(int)
-        display_peers["KRI"] = display_peers["kri_score"].map("{:.2f}".format)
-        display_peers["Riskklass"] = display_peers["risk_class"]
-        display_peers["Skuld (kr)"] = display_peers["debt_per_capita"].map(
-            lambda x: f"{x:,.0f}".replace(",", "\u202f")
-        )
-        display_peers["Arbetslöshet (%)"] = display_peers["unemployment"].map("{:.1f}".format)
-        display_peers["Försörjning"] = display_peers["dependency_ratio"].map("{:.3f}".format)
-        display_peers["Befolkning (%)"] = display_peers["population_growth"].map("{:.1f}".format)
-        display_peers["Skattekraft (%)"] = display_peers["tax_base_relative"].map("{:.1f}".format)
-        display_peers["Avstånd"] = display_peers["distance"].map("{:.3f}".format)
+        display_peers = display_peers.rename(columns={
+            "municipality_name": "Kommun",
+            "rank": "Rang",
+            "kri_score": "KRI",
+            "risk_class": "Riskklass",
+            "debt_per_capita": "Skuld (kr)",
+            "unemployment": "Arbetslöshet (%)",
+            "dependency_ratio": "Försörjning",
+            "population_growth": "Befolkning (%)",
+            "tax_base_relative": "Skattekraft (%)",
+            "distance": "Avstånd",
+        })
 
         show_cols = [
-            "Rang", "municipality_name", "Riskklass", "KRI",
+            "Rang", "Kommun", "Riskklass", "KRI",
             "Skuld (kr)", "Arbetslöshet (%)", "Försörjning",
             "Befolkning (%)", "Skattekraft (%)", "Avstånd",
         ]
-        st.dataframe(
-            display_peers[show_cols].rename(columns={"municipality_name": "Kommun"}),
-            use_container_width=True,
-            hide_index=True,
+        peer_display = display_peers[show_cols].copy()
+
+        peer_styled = (
+            peer_display.style
+            .apply(_highlight_extremes, higher_is_worse=True, subset=["KRI"])
+            .apply(_highlight_extremes, higher_is_worse=True, subset=["Skuld (kr)"])
+            .apply(_highlight_extremes, higher_is_worse=True, subset=["Arbetslöshet (%)"])
+            .apply(_highlight_extremes, higher_is_worse=True, subset=["Försörjning"])
+            .apply(_highlight_extremes, higher_is_worse=False, subset=["Befolkning (%)"])
+            .apply(_highlight_extremes, higher_is_worse=False, subset=["Skattekraft (%)"])
+            .format({
+                "KRI": "{:.2f}",
+                "Skuld (kr)": lambda x: format_swedish_int(x),
+                "Arbetslöshet (%)": "{:.1f}",
+                "Försörjning": "{:.3f}",
+                "Befolkning (%)": "{:.1f}",
+                "Skattekraft (%)": "{:.1f}",
+                "Avstånd": "{:.3f}",
+                "Rang": "{:.0f}",
+            })
         )
+        st.dataframe(peer_styled, use_container_width=True, hide_index=True)
     else:
         st.info("Peer-data saknas för vald kombination.")
 except Exception as e:
@@ -324,8 +368,8 @@ st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 st.markdown(render_card_header(
-    title="Underliggande data – alla år",
-    subtitle=f"Alla indikatorer för {selected_name}, 2010–2024",
+    title="Underliggande data, alla år",
+    subtitle=f"Alla indikatorer för {selected_name}, 2010 - 2024",
     tag="Rådata",
 ), unsafe_allow_html=True)
 
@@ -348,42 +392,87 @@ display_history = muni_history[[
     "tax_base_relative": "Skattekraft (% av rikssnitt)",
 })
 
-st.dataframe(display_history, use_container_width=True, hide_index=True)
+history_styled = (
+    display_history.style
+    .apply(_highlight_extremes, higher_is_worse=True, subset=["KRI Poäng"])
+    .apply(_highlight_extremes, higher_is_worse=True, subset=["Rang"])
+    .apply(_highlight_extremes, higher_is_worse=True, subset=["Skuld per capita (kr)"])
+    .apply(_highlight_extremes, higher_is_worse=True, subset=["Arbetslöshet (%)"])
+    .apply(_highlight_extremes, higher_is_worse=True, subset=["Försörjningskvot"])
+    .apply(_highlight_extremes, higher_is_worse=False, subset=["Befolkningstillväxt (%)"])
+    .apply(_highlight_extremes, higher_is_worse=False, subset=["Skattekraft (% av rikssnitt)"])
+    .format({
+        "KRI Poäng": "{:.2f}",
+        "Skuld per capita (kr)": lambda x: format_swedish_int(x),
+        "Arbetslöshet (%)": "{:.1f}",
+        "Försörjningskvot": "{:.3f}",
+        "Befolkningstillväxt (%)": "{:.1f}",
+        "Skattekraft (% av rikssnitt)": "{:.1f}",
+        "Rang": "{:.0f}",
+        "År": "{:.0f}",
+    })
+)
+st.dataframe(history_styled, use_container_width=True, hide_index=True)
 
 csv_data = display_history.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
 
-dl_col1, dl_col2, dl_col3 = st.columns([2, 2, 6])
-with dl_col1:
-    st.download_button(
-        label=SWEDISH_LABELS["download_data"],
-        data=csv_data,
-        file_name=f"kri_{selected_code}_{selected_name.replace(' ', '_')}.csv",
-        mime="text/csv",
-        key="ka_download_csv",
+_HELP_CSV = (
+    "Laddar ned en CSV fil med all tidsdata för vald kommun. "
+    "Semikolon mellan kolumner och komma som decimaltecken."
+)
+_HELP_PDF = (
+    "Skapar en riksomfattande PDF för valt analysår (alla 290 kommuner). "
+    "När rapporten är färdig visas en ny knapp för själva nedladdningen."
+)
+
+with st.container(border=True):
+    st.markdown(
+        render_card_header(
+            title="Dataexport och datakvalitet",
+            subtitle="Nedladdningar och kontroll av underlag för vald kommun.",
+            tag="Export",
+        ),
+        unsafe_allow_html=True,
     )
-with dl_col2:
-    if st.button("📄 Ladda ner rapport (PDF)", key="ka_pdf_btn"):
-        with st.spinner("Genererar PDF-rapport…"):
-            try:
-                from src.report_gen import generate_report
-                pdf_bytes = generate_report(kri_df=kri_df, report_year=selected_year)
-                st.download_button(
-                    label=SWEDISH_LABELS["download_pdf"],
-                    data=pdf_bytes,
-                    file_name=f"kri_rapport_{selected_year}.pdf",
-                    mime="application/pdf",
-                    key="ka_download_pdf_actual",
-                )
-            except Exception as e:
-                st.error(f"Kunde inte generera PDF: {e}")
 
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+    btn1, btn2 = st.columns(2, gap="medium")
+    with btn1:
+        st.download_button(
+            label=SWEDISH_LABELS["download_data"],
+            data=csv_data,
+            file_name=f"kri_{selected_code}_{selected_name.replace(' ', '_')}.csv",
+            mime="text/csv",
+            key="ka_download_csv",
+            help=_HELP_CSV,
+        )
+    with btn2:
+        if st.button(
+            "📄 Ladda ner rapport (PDF)",
+            key="ka_pdf_btn",
+            help=_HELP_PDF,
+        ):
+            with st.spinner("Genererar PDF-rapport…"):
+                try:
+                    from src.report_gen import generate_report
 
-# ---------------------------------------------------------------------------
-# ROW 6: Data quality panel
-# ---------------------------------------------------------------------------
+                    pdf_bytes = generate_report(kri_df=kri_df, report_year=selected_year)
+                    st.download_button(
+                        label=SWEDISH_LABELS["download_pdf"],
+                        data=pdf_bytes,
+                        file_name=f"kri_rapport_{selected_year}.pdf",
+                        mime="application/pdf",
+                        key="ka_download_pdf_actual",
+                        help=_HELP_PDF,
+                    )
+                except Exception as e:
+                    st.error(f"Kunde inte generera PDF: {e}")
 
-with st.expander(f"📋 {SWEDISH_LABELS['data_quality']}", expanded=False):
+    st.markdown(
+        '<div style="border-top:1px solid #EEF0F3;margin:20px 0 16px 0;"></div>'
+        f'<div class="card-title" style="font-size:14px;margin-bottom:10px;">{SWEDISH_LABELS["data_quality"]}</div>',
+        unsafe_allow_html=True,
+    )
+
     flags = get_municipality_flags(selected_code)
     if flags:
         for flag in flags:
@@ -391,7 +480,6 @@ with st.expander(f"📋 {SWEDISH_LABELS['data_quality']}", expanded=False):
     else:
         st.success("Inga kända datakvalitetsproblem för denna kommun.")
 
-    # Completeness check for this municipality
     muni_cols = ["debt_per_capita", "unemployment", "dependency_ratio",
                  "population_growth", "tax_base_relative"]
     col_labels = {
@@ -405,10 +493,10 @@ with st.expander(f"📋 {SWEDISH_LABELS['data_quality']}", expanded=False):
     total_cells = len(muni_history) * len(muni_cols)
     complete_cells = total_cells - missing_count
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Datapunkter totalt", f"{total_cells}")
-    c2.metric("Kompletta", f"{complete_cells}")
-    c3.metric("Saknade", f"{missing_count}")
+    q1, q2, q3 = st.columns(3)
+    q1.metric("Datapunkter totalt", f"{total_cells}")
+    q2.metric("Kompletta", f"{complete_cells}")
+    q3.metric("Saknade", f"{missing_count}")
 
     if missing_count > 0:
         st.markdown("**Saknade värden per variabel:**")
@@ -416,6 +504,8 @@ with st.expander(f"📋 {SWEDISH_LABELS['data_quality']}", expanded=False):
             n_miss = int(muni_history[col].isna().sum())
             if n_miss > 0:
                 st.markdown(f"- **{col_labels[col]}**: {n_miss} år saknas")
+
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Footer attribution

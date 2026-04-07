@@ -58,9 +58,9 @@ nav_items = [
 ]
 for num, fname, title in nav_items:
     if fname and (pages_dir / fname).exists():
-        st.sidebar.page_link(f"pages/{fname}", label=f"{num}  {title}")
+        st.sidebar.page_link(f"pages/{fname}", label=title)
     else:
-        st.sidebar.caption(f"{num}  {title}, kommer snart")
+        st.sidebar.caption(f"{title}, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
 st.markdown(render_card_header(
     title="Jämför kommuner",
-    subtitle="Välj 2–5 kommuner för att jämföra riskbidrag sida vid sida",
+    subtitle="Välj 2 - 5 kommuner för att jämföra riskbidrag sida vid sida",
     tag="Jämförelse",
 ), unsafe_allow_html=True)
 
@@ -288,7 +288,7 @@ st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 st.markdown(render_card_header(
-    title="KRI-trend 2010–2024",
+    title="KRI-trend 2010 - 2024",
     subtitle="Historisk utveckling av KRI-poäng för valda kommuner",
     tag="Tidserie",
 ), unsafe_allow_html=True)
