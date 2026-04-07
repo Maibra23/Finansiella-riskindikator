@@ -79,9 +79,9 @@ st.sidebar.markdown(
 
 pages_dir = PROJECT_ROOT / "app" / "pages"
 nav_items = [
-    ("01", "1_riksoversikt.py", "Riksöversikt"),
-    ("02", "2_riskdekomposition.py", "Riskdekomposition"),
-    ("03", "3_kommunanalys.py", "Kommunanalys"),
+    ("01", "riksoversikt.py", "Riksöversikt"),
+    ("02", "riskdekomposition.py", "Riskdekomposition"),
+    ("03", "kommunanalys.py", "Kommunanalys"),
     ("04", None, "Metod & källor"),
 ]
 
@@ -283,9 +283,9 @@ with st.container(border=True):
             ),
             unsafe_allow_html=True,
         )
-        st.page_link("pages/1_riksoversikt.py", label="Öppna Riksöversikt", use_container_width=True)
+        st.page_link("pages/riksoversikt.py", label="Öppna Riksöversikt", use_container_width=True)
     with _nav_col2:
-        if (pages_dir / "2_riskdekomposition.py").exists():
+        if (pages_dir / "riskdekomposition.py").exists():
             st.markdown(
                 render_landing_nav_card(
                     tag="Sida 02",
@@ -296,7 +296,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
             st.page_link(
-                "pages/2_riskdekomposition.py",
+                "pages/riskdekomposition.py",
                 label="Öppna Riskdekomposition",
                 use_container_width=True,
             )
@@ -312,7 +312,7 @@ with st.container(border=True):
             )
             st.caption("Kommer snart")
     with _nav_col3:
-        if (pages_dir / "3_kommunanalys.py").exists():
+        if (pages_dir / "kommunanalys.py").exists():
             st.markdown(
                 render_landing_nav_card(
                     tag="Sida 03",
@@ -323,7 +323,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
             st.page_link(
-                "pages/3_kommunanalys.py",
+                "pages/kommunanalys.py",
                 label="Öppna Kommunanalys",
                 use_container_width=True,
             )
