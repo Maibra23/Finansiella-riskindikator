@@ -51,9 +51,9 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 nav_items = [
-    ("01", "1_riksoversikt.py", "Riksöversikt"),
-    ("02", "2_riskdekomposition.py", "Riskdekomposition"),
-    ("03", "3_kommunanalys.py", "Kommunanalys"),
+    ("01", "riksoversikt.py", "Riksöversikt"),
+    ("02", "riskdekomposition.py", "Riskdekomposition"),
+    ("03", "kommunanalys.py", "Kommunanalys"),
     ("04", None, "Metod & källor"),
 ]
 for num, fname, title in nav_items:
