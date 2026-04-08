@@ -121,6 +121,15 @@ Z_SCORE_LABELS: dict[str, str] = {
 CONTRIB_COLS = list(CONTRIB_LABELS.keys())
 Z_COLS = list(Z_SCORE_LABELS.keys())
 
+# Standardval för avsnittet "Jämför kommuner" (namn måste finnas i data för valt år)
+DEFAULT_COMPARE_MUNICIPALITIES: tuple[str, ...] = (
+    "Huddinge",
+    "Karlskrona",
+    "Malmö",
+    "Växjö",
+    "Kiruna",
+)
+
 # ---------------------------------------------------------------------------
 # Helper: build sorted municipality list for current year
 # ---------------------------------------------------------------------------
@@ -246,14 +255,16 @@ st.markdown(render_card_header(
     tag="Jämförelse",
 ), unsafe_allow_html=True)
 
-default_compare = [selected_name] + [
-    n for n in muni_options[1:5] if n != selected_name
-][:3]
+default_compare = [n for n in DEFAULT_COMPARE_MUNICIPALITIES if n in muni_options]
+if len(default_compare) < 2:
+    default_compare = [selected_name] + [
+        x for x in muni_options if x != selected_name
+    ][:4]
 
 compare_names = st.multiselect(
     "Jämför kommuner",
     options=muni_options,
-    default=default_compare[:4],
+    default=default_compare[:5],
     max_selections=5,
     key="rd_compare_select",
     label_visibility="collapsed",
