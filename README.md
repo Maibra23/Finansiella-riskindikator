@@ -28,12 +28,23 @@ Kommunal Finansiell Riskindikator (KRI) är en interaktiv dashboard som rankar S
 
 ---
 
+## Deploy to Streamlit Cloud
+
+1. Push this repository to GitHub (data files are committed — no pipeline needed at runtime)
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**
+3. Select your repository and set:
+   - **Main file path:** `app/main.py`
+   - **Python version:** `3.11`
+4. Click **Deploy** — no secrets or environment variables required
+
+---
+
 ## Snabbstart (Quick start)
 
 ```bash
 # Clone
-git clone https://github.com/your-username/kommun-risk-dashboard.git
-cd kommun-risk-dashboard
+git clone https://github.com/your-username/kommunal-finansiell-riskindikator.git
+cd kommunal-finansiell-riskindikator
 
 # One-command setup (creates venv, installs deps, fetches data)
 bash scripts/setup.sh

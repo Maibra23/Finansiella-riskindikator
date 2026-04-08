@@ -42,8 +42,8 @@ data/raw/*
 !data/cache/.gitkeep
 !data/raw/.gitkeep
 
-# Parquet files (regenerated from pipeline)
-*.parquet
+# Parquet files — committed for Streamlit Cloud deployment (no pipeline at runtime)
+# data/processed/*.parquet is tracked intentionally
 
 # Streamlit
 .streamlit/secrets.toml
