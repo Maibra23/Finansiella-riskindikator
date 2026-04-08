@@ -63,12 +63,24 @@ def apply_streamlit_theme() -> None:
         --kri-pad-y: 2rem;
         --kri-label-upper: 11px;
         --kri-label-track: 1.5px;
+        /* Matches .brand-mark::before (4px) + gap (10px) so hero eyebrow lines up with sidebar mark */
+        --kri-brand-bar-offset: 14px;
+        /* Minimal top inset inside .lp-hero so gold eyebrow aligns with sidebar (avoid stacking on --kri-pad-y) */
+        --kri-hero-pad-top: 0.35rem;
     }}
 
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     /* Hide chrome but keep sidebar expand control usable (descendant may stay visible). */
-    header[data-testid="stHeader"] {{visibility: hidden; height: 0; overflow: visible;}}
+    header[data-testid="stHeader"] {{
+        visibility: hidden;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: visible;
+    }}
     [data-testid="collapsedControl"] {{
         visibility: visible !important;
         position: fixed !important;
@@ -99,6 +111,13 @@ def apply_streamlit_theme() -> None:
         max-width: 1480px !important;
     }}
 
+    /* Streamlit sections: avoid extra top offset so main/sidebar align with shared --kri-pad-y */
+    [data-testid="stMain"],
+    [data-testid="stSidebar"] {{
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }}
+
     [data-testid="stSidebar"] {{
         background-color: {p};
         min-width: 260px !important;
@@ -112,16 +131,20 @@ def apply_streamlit_theme() -> None:
         display: none !important;
     }}
 
+    /* Streamlit puts sidebar widgets in stSidebarContent (often no .block-container); pad this node so gutters match main */
     [data-testid="stSidebarContent"] {{
         color: #E8ECF4 !important;
-    }}
-
-    /* Sidebar gutters: same --kri-pad-x / --kri-pad-y as main for aligned keylines */
-    [data-testid="stSidebar"] .block-container {{
+        box-sizing: border-box !important;
         padding-top: var(--kri-pad-y) !important;
         padding-bottom: var(--kri-pad-y) !important;
         padding-left: var(--kri-pad-x) !important;
         padding-right: var(--kri-pad-x) !important;
+    }}
+
+    /* Nested .block-container (some Streamlit versions): strip horizontal pad only so we do not double --kri-pad-x */
+    [data-testid="stSidebarContent"] .block-container {{
+        padding-left: 0 !important;
+        padding-right: 0 !important;
         max-width: 100% !important;
     }}
     [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
@@ -199,12 +222,15 @@ def apply_streamlit_theme() -> None:
         color: rgba(255, 255, 255, 0.72) !important;
     }}
 
-    .stApp > div > div > div > div {{
-        padding-top: 0.5rem;
-    }}
+    /* Removed broad .stApp > … > div {{ padding-top }} — it drifted main vs sidebar vertically */
 
     [data-testid="stVerticalBlock"] > div {{
         gap: 0.5rem;
+    }}
+
+    /* First stack in main: Streamlit sometimes adds top margin on the wrapper */
+    [data-testid="stMain"] .block-container > [data-testid="stVerticalBlock"]:first-child {{
+        margin-top: 0 !important;
     }}
 
     /* Equal-height KPI columns: stretch Streamlit horizontal rows in main */
@@ -410,7 +436,7 @@ def apply_streamlit_theme() -> None:
     .brand-title {{
         font-size: 17px;
         font-weight: 700;
-        margin-top: 10px;
+        margin-top: 6px;
         color: #FFFFFF;
         letter-spacing: -0.2px;
     }}
@@ -581,8 +607,9 @@ def apply_streamlit_theme() -> None:
     .lp-hero {{
         background: linear-gradient(145deg, {p} 0%, {COLORS["primary_light"]} 55%, #152a52 100%);
         border-radius: 4px;
-        padding: 22px 28px 20px;
+        padding: var(--kri-hero-pad-top) var(--kri-pad-x) 20px;
         margin-bottom: 0;
+        margin-top: 0 !important;
         border: 1px solid rgba(196,163,90,0.25);
     }}
     .lp-hero-inner {{
@@ -597,6 +624,11 @@ def apply_streamlit_theme() -> None:
         color: {accent};
         font-weight: 600;
         margin-bottom: 6px;
+    }}
+    /* Option A: align first glyph with .brand-mark (bar + gap) when gutters match */
+    .lp-hero .lp-eyebrow {{
+        padding-left: var(--kri-brand-bar-offset);
+        box-sizing: border-box;
     }}
     /* Main sets color on stMain — hero must override for h1 + text */
     [data-testid="stMain"] .lp-hero h1.lp-headline,
@@ -967,7 +999,7 @@ def apply_streamlit_theme() -> None:
         .lp-stat-strip {{ grid-template-columns: 1fr; }}
         .lp-stat-cell {{ border-right: none; border-bottom: 1px solid {border}; }}
         .lp-stat-cell:last-child {{ border-bottom: none; }}
-        .lp-hero {{ padding: 18px 16px 16px; }}
+        .lp-hero {{ padding: var(--kri-hero-pad-top) 16px 16px; }}
     }}
     @media (prefers-reduced-motion: reduce) {{
         .lp-step, .lp-nav-card {{ transition: none !important; }}
