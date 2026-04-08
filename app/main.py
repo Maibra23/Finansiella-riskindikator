@@ -83,13 +83,12 @@ nav_items = [
     ("riksoversikt.py", "Riksöversikt"),
     ("riskdekomposition.py", "Riskdekomposition"),
     ("kommunanalys.py", "Kommunanalys"),
+    ("kallor.py", "Källor"),
 ]
 
 for fname, title in nav_items:
     if (pages_dir / fname).exists():
         st.sidebar.page_link(f"pages/{fname}", label=title)
-
-st.sidebar.caption("Metod & källor, kommer snart")
 
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 

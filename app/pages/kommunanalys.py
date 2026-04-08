@@ -54,11 +54,11 @@ nav_items = [
     ("riksoversikt.py", "Riksöversikt"),
     ("riskdekomposition.py", "Riskdekomposition"),
     ("kommunanalys.py", "Kommunanalys"),
+    ("kallor.py", "Källor"),
 ]
 for fname, title in nav_items:
     if (pages_dir / fname).exists():
         st.sidebar.page_link(f"pages/{fname}", label=title)
-st.sidebar.caption("Metod & källor, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -424,13 +424,10 @@ _HELP_PDF = (
     "När rapporten är färdig visas en ny knapp för själva nedladdningen."
 )
 
-with st.container(border=True):
+with st.expander("Dataexport och datakvalitet", expanded=False):
     st.markdown(
-        render_card_header(
-            title="Dataexport och datakvalitet",
-            subtitle="Nedladdningar och kontroll av underlag för vald kommun.",
-            tag="Export",
-        ),
+        "<div style='color:#6B7280;font-size:0.85rem;margin-bottom:12px'>"
+        "Nedladdningar och kontroll av underlag för vald kommun.</div>",
         unsafe_allow_html=True,
     )
 

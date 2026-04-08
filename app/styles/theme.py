@@ -8,6 +8,7 @@ All code identifiers, comments, and docstrings are in English.
 from __future__ import annotations
 
 import copy
+import html
 from typing import Any, Literal
 
 import streamlit as st
@@ -56,6 +57,14 @@ def apply_streamlit_theme() -> None:
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <style>
+    /* Shared rhythm: main + sidebar use the same horizontal gutter so text keylines align. */
+    :root {{
+        --kri-pad-x: 1.5rem;
+        --kri-pad-y: 2rem;
+        --kri-label-upper: 11px;
+        --kri-label-track: 1.5px;
+    }}
+
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     /* Hide chrome but keep sidebar expand control usable (descendant may stay visible). */
@@ -83,10 +92,10 @@ def apply_streamlit_theme() -> None:
     }}
 
     .block-container {{
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 2.5rem !important;
-        padding-right: 2.5rem !important;
+        padding-top: var(--kri-pad-y) !important;
+        padding-bottom: var(--kri-pad-y) !important;
+        padding-left: var(--kri-pad-x) !important;
+        padding-right: var(--kri-pad-x) !important;
         max-width: 1480px !important;
     }}
 
@@ -107,12 +116,12 @@ def apply_streamlit_theme() -> None:
         color: #E8ECF4 !important;
     }}
 
-    /* Sidebar gutters aligned with main app vertical rhythm (same top/bottom as .block-container) */
+    /* Sidebar gutters: same --kri-pad-x / --kri-pad-y as main for aligned keylines */
     [data-testid="stSidebar"] .block-container {{
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 1.25rem !important;
-        padding-right: 1.25rem !important;
+        padding-top: var(--kri-pad-y) !important;
+        padding-bottom: var(--kri-pad-y) !important;
+        padding-left: var(--kri-pad-x) !important;
+        padding-right: var(--kri-pad-x) !important;
         max-width: 100% !important;
     }}
     [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
@@ -121,9 +130,9 @@ def apply_streamlit_theme() -> None:
 
     [data-testid="stSidebar"] label {{
         color: rgba(255,255,255,0.5) !important;
-        font-size: 10.5px !important;
+        font-size: var(--kri-label-upper) !important;
         text-transform: uppercase !important;
-        letter-spacing: 1px !important;
+        letter-spacing: var(--kri-label-track) !important;
         font-weight: 600 !important;
     }}
 
@@ -136,7 +145,7 @@ def apply_streamlit_theme() -> None:
     }}
 
     [data-testid="stSidebarNav"] {{
-        padding-top: 0.5rem;
+        padding-top: 0.25rem;
     }}
 
     [data-testid="stSidebarNav"] ul {{
@@ -247,11 +256,14 @@ def apply_streamlit_theme() -> None:
     .kpi-card.kpi-accent::before {{ background: {accent}; }}
     .kpi-card.kpi-danger::before {{ background: {high}; }}
     .kpi-card.kpi-success::before {{ background: {low}; }}
+    .kpi-card.kpi-card--tipped {{
+        cursor: help;
+    }}
 
     .kpi-label {{
-        font-size: 10.5px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.2px;
+        letter-spacing: var(--kri-label-track);
         color: {text_sec};
         margin-bottom: 10px;
         font-weight: 600;
@@ -336,9 +348,9 @@ def apply_streamlit_theme() -> None:
         border-bottom: 1px solid {border};
     }}
     .eyebrow {{
-        font-size: 11px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.5px;
+        letter-spacing: var(--kri-label-track);
         color: {accent};
         font-weight: 600;
         margin-bottom: 6px;
@@ -382,8 +394,8 @@ def apply_streamlit_theme() -> None:
         display: flex;
         align-items: center;
         gap: 10px;
-        font-size: 11px;
-        letter-spacing: 1.5px;
+        font-size: var(--kri-label-upper);
+        letter-spacing: var(--kri-label-track);
         text-transform: uppercase;
         color: {accent};
         font-weight: 600;
@@ -403,22 +415,22 @@ def apply_streamlit_theme() -> None:
         letter-spacing: -0.2px;
     }}
     .brand-sub {{
-        font-size: 11px;
+        font-size: var(--kri-label-upper);
         color: rgba(255,255,255,0.55);
         margin-top: 2px;
     }}
     .nav-section-label,
     .nav-section {{
-        font-size: 10px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.2px;
+        letter-spacing: var(--kri-label-track);
         color: rgba(255,255,255,0.4);
         margin-bottom: 12px;
     }}
     .control-label {{
-        font-size: 10.5px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: var(--kri-label-track);
         color: rgba(255,255,255,0.5);
         margin-bottom: 10px;
         margin-top: 8px;
@@ -441,9 +453,9 @@ def apply_streamlit_theme() -> None:
     .kri-table thead th {{
         text-align: left;
         padding: 10px 12px;
-        font-size: 10.5px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: var(--kri-label-track);
         color: {text_sec};
         border-bottom: 1.5px solid {p};
         font-weight: 600;
@@ -551,10 +563,10 @@ def apply_streamlit_theme() -> None:
     .riskklass-rad {{
         display: flex;
         align-items: center;
-        font-size: 12.5px;
+        font-size: 13.5px;
         color: rgba(255,255,255,0.75);
         margin-bottom: 8px;
-        line-height: 1;
+        line-height: 1.35;
     }}
     .riskklass-punkt {{
         width: 8px;
@@ -579,9 +591,9 @@ def apply_streamlit_theme() -> None:
         text-align: left;
     }}
     .lp-eyebrow {{
-        font-size: 11px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.5px;
+        letter-spacing: var(--kri-label-track);
         color: {accent};
         font-weight: 600;
         margin-bottom: 6px;
@@ -634,9 +646,9 @@ def apply_streamlit_theme() -> None:
     }}
     .lp-stat-cell:last-child {{ border-right: none; }}
     .lp-stat-label {{
-        font-size: 10.5px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.1px;
+        letter-spacing: var(--kri-label-track);
         color: {text_sec};
         font-weight: 600;
         margin-bottom: 6px;
@@ -660,9 +672,9 @@ def apply_streamlit_theme() -> None:
         margin-bottom: 22px;
     }}
     .lp-section-title {{
-        font-size: 11px;
+        font-size: var(--kri-label-upper);
         text-transform: uppercase;
-        letter-spacing: 1.4px;
+        letter-spacing: var(--kri-label-track);
         color: {accent};
         font-weight: 600;
         margin-bottom: 10px;
@@ -1044,10 +1056,18 @@ def render_kpi_card(
     delta: str,
     delta_direction: Literal["up", "down", "flat"],
     variant: Literal["primary", "accent", "danger", "success"],
+    tooltip: str | None = None,
 ) -> str:
-    """Return HTML for a KPI card (caller uses st.markdown(..., unsafe_allow_html=True)."""
+    """Return HTML for a KPI card (caller uses st.markdown(..., unsafe_allow_html=True).
+
+    Optional ``tooltip`` is exposed as the HTML ``title`` attribute (native hover text).
+    """
+    tip_class = " kpi-card--tipped" if tooltip else ""
+    tip_attr = (
+        f' title="{html.escape(tooltip, quote=True)}"' if tooltip else ""
+    )
     return f"""
-<div class="kpi-card kpi-{variant}">
+<div class="kpi-card kpi-{variant}{tip_class}"{tip_attr}>
   <div class="kpi-label">{label}</div>
   <div class="kpi-value">{value}<span class="kpi-unit">{unit}</span></div>
   <div class="kpi-delta delta-{delta_direction}">{delta}</div>

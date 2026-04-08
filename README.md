@@ -71,10 +71,12 @@ venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 ```
 
-4. Fetch data and build the index:
+4. Fetch data and build the KRI index:
 ```bash
 python scripts/run_pipeline.py
 ```
+This fetches all data, cleans it, and builds the KRI index in one step.
+The pipeline saves both `kri_base_data.parquet` and `kri_results.parquet`.
 
 5. Run the dashboard:
 ```bash
@@ -103,13 +105,14 @@ kommun-risk-dashboard/
 ├── app/
 │   ├── main.py                # Streamlit entry point + landing page
 │   ├── pages/
-│   │   ├── 1_riksoversikt.py  # National overview: map, KPIs, distribution
-│   │   ├── 2_riskdekomposition.py  # Risk driver analysis per municipality
-│   │   └── 3_kommunanalys.py  # Municipality deep dive + peer comparison
+│   │   ├── riksoversikt.py        # National overview: map, KPIs, distribution
+│   │   ├── riskdekomposition.py   # Risk driver analysis per municipality
+│   │   ├── kommunanalys.py        # Municipality deep dive + peer comparison
+│   │   └── kallor.py              # Data sources and methodology
 │   ├── components/
-│   │   ├── charts.py          # Apache ECharts option builders
-│   │   ├── sweden_map.py      # Sweden scatter map wrapper
-│   │   └── landing_visuals.py # Landing page HTML/SVG fragments
+│   │   ├── charts.py              # Apache ECharts option builders
+│   │   ├── sweden_choropleth.py   # Folium choropleth map
+│   │   └── landing_visuals.py     # Landing page HTML/SVG fragments
 │   └── styles/
 │       └── theme.py           # Design system, CSS injection, ECharts helpers
 ├── docs/
@@ -176,7 +179,7 @@ KRI(i,t) = Σ wk × zk(i,t)
 All charts use **Apache ECharts** via `streamlit-echarts`. Shared styling helpers in `app/styles/theme.py`:
 
 - `get_echarts_base_options()` — grid, animation, background
-- `get_tooltip_style()` — navy tooltip with gold border
+- `get_tooltip_style()` — white background tooltip with rounded corners
 - `get_axis_style(type)` — consistent axis styling
 
 Chart builders in `app/components/charts.py`:
@@ -196,9 +199,10 @@ Chart builders in `app/components/charts.py`:
 
 | Page | Description |
 |------|-------------|
-| **Riksöversikt** | National overview: 4 KPI cards, Sweden scatter map (risk-coloured), KRI distribution histogram, top/bottom 15 risk tables |
+| **Riksöversikt** | National overview: 4 KPI cards, Sweden choropleth map (risk-coloured), KRI distribution histogram, top/bottom 15 risk tables |
 | **Riskdekomposition** | Per-municipality risk driver analysis: contribution bars, radar vs. national avg, multi-municipality grouped bar comparison, KRI trend line |
 | **Kommunanalys** | Municipality deep dive: 6 KPI cards with deltas, KRI trend vs. rikssnitt, 10 peer municipalities table, full historical data table + CSV download, data quality panel |
+| **Källor** | Data sources table, API documentation, licence information |
 
 All UI text is in Swedish. Code identifiers and comments are in English.
 

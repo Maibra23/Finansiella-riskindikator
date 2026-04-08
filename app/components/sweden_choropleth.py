@@ -23,9 +23,15 @@ GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "kommuner.geojson"
 
 
 @st.cache_data(show_spinner=False)
-def _load_geojson() -> dict:
-    with open(GEOJSON_PATH, encoding="utf-8") as f:
-        return json.load(f)
+def _load_geojson() -> dict | None:
+    if not GEOJSON_PATH.exists():
+        return None
+    try:
+        with open(GEOJSON_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:
+        st.error(f"Kunde inte läsa kartdata: {exc}")
+        return None
 
 
 def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> None:
@@ -58,7 +64,11 @@ def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> Non
         }
 
     # Deep-copy GeoJSON so cached original stays clean
-    geojson = json.loads(json.dumps(_load_geojson()))
+    _raw = _load_geojson()
+    if _raw is None:
+        st.warning("Kartfilen saknas (data/geo/kommuner.geojson). Kartan kan inte visas.")
+        return
+    geojson = json.loads(json.dumps(_raw))
     for feat in geojson["features"]:
         code = feat["properties"].get("id", "").zfill(4)
         d = data_dict.get(code, {})

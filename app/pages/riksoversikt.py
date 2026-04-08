@@ -28,6 +28,28 @@ from app.styles.theme import (
 )
 from src.config import MUNICIPALITIES, SWEDISH_LABELS
 
+# KPI hover texts (Riksöversikt row) — kort förklaring av mått och jämförelse
+_KPI_TIP_MEDIAN_KRI = (
+    "Median KRI är mittenvärdet i urvalet: hälften av kommunerna har lägre KRI och hälften högre. "
+    "Till skillnad från medelvärdet påverkas medianen mindre av några få extrema kommuner. "
+    "Riskklasserna bygger också på percentiler, så måttet beskriver väl hur den typiska kommunen "
+    "förhåller sig till övriga. Förändring mot föregående år visar om mitten av fördelningen flyttats."
+)
+_KPI_TIP_HIGH_RISK = (
+    "Antal kommuner med riskklass hög i urvalet, av totalt antal valda. "
+    "Klassningen sätts per år utifrån hela rikets KRI-fördelning (ungefär övre fjärdedelen). "
+    "Jämförelsen mot föregående år visar om andelen hög risk i urvalet förändrats."
+)
+_KPI_TIP_MEDIAN_DEBT = (
+    "Median skuld per invånare: typisk skuldnivå i urvalet. Medianen dras mindre av enstaka "
+    "extremvärden än ett medelvärde skulle göra. Procent mot referensår jämför denna mittenskuld över tid."
+)
+_KPI_TIP_POP_CHANGE = (
+    "Här används medelvärdet av befolkningsförändring i procent bland kommunerna i urvalet "
+    "(inte median). Det visar den genomsnittliga utvecklingen i urvalet. "
+    "Jämförelsen mot referensår beskriver skillnaden mot medelvärdet det referensåret."
+)
+
 # ---------------------------------------------------------------------------
 # Page setup
 # ---------------------------------------------------------------------------
@@ -51,11 +73,11 @@ nav_items = [
     ("riksoversikt.py", "Riksöversikt"),
     ("riskdekomposition.py", "Riskdekomposition"),
     ("kommunanalys.py", "Kommunanalys"),
+    ("kallor.py", "Källor"),
 ]
 for fname, title in nav_items:
     if (pages_dir / fname).exists():
         st.sidebar.page_link(f"pages/{fname}", label=title)
-st.sidebar.caption("Metod & källor, kommer snart")
 st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -265,6 +287,7 @@ with kpi_col1:
             delta=d1 or "Saknas",
             delta_direction=dir1,
             variant="primary",
+            tooltip=_KPI_TIP_MEDIAN_KRI,
         ),
         unsafe_allow_html=True,
     )
@@ -277,6 +300,7 @@ with kpi_col2:
             delta=d2 or "Saknas",
             delta_direction=dir2,
             variant="danger",
+            tooltip=_KPI_TIP_HIGH_RISK,
         ),
         unsafe_allow_html=True,
     )
@@ -289,6 +313,7 @@ with kpi_col3:
             delta=d3 or "Saknas",
             delta_direction=dir3,
             variant="accent",
+            tooltip=_KPI_TIP_MEDIAN_DEBT,
         ),
         unsafe_allow_html=True,
     )
@@ -301,6 +326,7 @@ with kpi_col4:
             delta=d4 or "Saknas",
             delta_direction=dir4,
             variant="success",
+            tooltip=_KPI_TIP_POP_CHANGE,
         ),
         unsafe_allow_html=True,
     )

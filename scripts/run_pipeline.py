@@ -198,6 +198,24 @@ def main(use_cache: bool = True):
     print(f"  CSV:     {csv_path}")
 
     # =========================================================================
+    # STEP 7: Build KRI index
+    # =========================================================================
+    print_separator("STEP 7: BUILDING KRI INDEX")
+    try:
+        from src.index_builder import KRIBuilder
+        print("\n  Running KRIBuilder().build() ...")
+        kri_results = KRIBuilder().build()
+        kri_path = Path("data/processed/kri_results.parquet")
+        print(f"  KRI index saved: {kri_path}")
+        if kri_path.exists():
+            print(f"           Size: {kri_path.stat().st_size / 1024:.1f} KB")
+        print(f"  Municipalities: {kri_results['municipality_code'].nunique()}")
+        print(f"  Years: {sorted(kri_results['year'].unique().tolist())}")
+    except Exception as exc:
+        print(f"\n  ERROR building KRI index: {exc}")
+        print("  Base data saved — run: python -c \"from src.index_builder import KRIBuilder; KRIBuilder().build()\"")
+
+    # =========================================================================
     # FINAL SUMMARY
     # =========================================================================
     end_time = datetime.now()
