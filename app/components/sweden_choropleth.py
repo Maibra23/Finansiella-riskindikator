@@ -16,7 +16,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import folium_static
 
-from src.config import DIVERGING_SCALE, MUNICIPALITIES
+from src.config import DIVERGING_SCALE, MAP_TILES, MUNICIPALITIES
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "kommuner.geojson"
@@ -34,8 +34,38 @@ def _load_geojson() -> dict | None:
         return None
 
 
-def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> None:
-    """Render a full polygon choropleth of Sweden's 290 municipalities."""
+def _build_colormap(scores: pd.Series) -> cm.LinearColormap:
+    """Diverging colour scale anchored on the same quartiles that set risk_class.
+
+    The composite KRI is a weighted mean of five z-scores, so its spread is well
+    below one standard deviation (≈0.43 in 2024).  A fixed ±2.5 domain therefore
+    compresses every municipality into the middle of the scale.  Anchoring the
+    neutral colour at 0 and the green/red steps at the year's 25th/75th
+    percentiles keeps the map readable *and* consistent with the risk classes
+    shown in the tables.
+    """
+    q25 = float(scores.quantile(0.25))
+    q75 = float(scores.quantile(0.75))
+    extent = max(abs(float(scores.min())), abs(float(scores.max())), 1e-6)
+
+    # Strictly increasing stops, one per colour in DIVERGING_SCALE (6 colours).
+    stops = [-extent, q25, 0.0, q75, (q75 + extent) / 2, extent]
+    if any(b <= a for a, b in zip(stops, stops[1:])):
+        # Degenerate spread (e.g. a single municipality selected) — fall back to
+        # an evenly spaced symmetric domain rather than crashing branca.
+        step = 2 * extent / (len(DIVERGING_SCALE) - 1)
+        stops = [-extent + i * step for i in range(len(DIVERGING_SCALE))]
+    return cm.LinearColormap(
+        colors=list(DIVERGING_SCALE),
+        index=stops,
+        vmin=-extent,
+        vmax=extent,
+        caption="KRI Poäng  ·  Lägre = lägre risk",
+    )
+
+
+def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
+    """Build the Folium map for a given year, or None when map data is missing."""
     sub = kri_df[kri_df["year"] == year].copy()
     sub["municipality_code"] = sub["municipality_code"].astype(str).str.zfill(4)
 
@@ -67,7 +97,7 @@ def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> Non
     _raw = _load_geojson()
     if _raw is None:
         st.warning("Kartfilen saknas (data/geo/kommuner.geojson). Kartan kan inte visas.")
-        return
+        return None
     geojson = json.loads(json.dumps(_raw))
     for feat in geojson["features"]:
         code = feat["properties"].get("id", "").zfill(4)
@@ -86,22 +116,29 @@ def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> Non
             code, feat["properties"].get("kom_namn", code)
         )
 
-    colormap = cm.LinearColormap(
-        colors=list(DIVERGING_SCALE),
-        vmin=-2.5,
-        vmax=2.5,
-        caption="KRI Poäng  ·  Lägre = lägre risk",
-    )
-    colormap.caption = "KRI Poäng  ·  Lägre = lägre risk"
+    colormap = _build_colormap(sub["kri_score"].astype(float))
 
     m = folium.Map(
         location=[63.0, 17.5],
         zoom_start=5,
-        tiles="CartoDB positron",
+        tiles=None,
         prefer_canvas=True,
         zoom_control=True,
         scrollWheelZoom=False,
     )
+    m.get_root().html.add_child(
+        folium.Element(
+            "<style>.folium-map .leaflet-container "
+            f"{{ background: {MAP_TILES['background']}; }}</style>"
+        )
+    )
+    folium.TileLayer(
+        tiles=MAP_TILES["url"],
+        attr=MAP_TILES["attribution"],
+        name=MAP_TILES["name"],
+        max_zoom=MAP_TILES["max_zoom"],
+        control=False,
+    ).add_to(m)
 
     def _style(feature: dict) -> dict:
         kri_val = feature["properties"].get("_kri", 0.0)
@@ -153,4 +190,12 @@ def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> Non
 
     colormap.add_to(m)
 
+    return m
+
+
+def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> None:
+    """Render a full polygon choropleth of Sweden's 290 municipalities."""
+    m = build_choropleth_map(kri_df, year)
+    if m is None:
+        return
     folium_static(m, width=None, height=height)

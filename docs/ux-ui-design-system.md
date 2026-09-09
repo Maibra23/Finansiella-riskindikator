@@ -364,8 +364,8 @@ Charts follow **Swedish** axis titles, legends, and tooltips per file docstring.
 ### 9.3 Choropleth — `app/components/sweden_choropleth.py`
 
 - **Library:** Folium + `streamlit_folium.folium_static`.
-- **Scale:** `branca.colormap.LinearColormap` with `DIVERGING_SCALE`, `vmin=-2.5`, `vmax=2.5`, caption “KRI Poäng · Lägre = lägre risk”.
-- **Basemap:** `CartoDB positron` tiles; center ~ Sweden, `zoom_start=5`, `scrollWheelZoom=False`.
+- **Scale:** `branca.colormap.LinearColormap` with `DIVERGING_SCALE` and explicit stops from `_build_colormap()`: neutral grey pinned at 0, green/red breakpoints on the year's 25th/75th percentiles, domain spanning the year's actual spread. Caption “KRI Poäng · Lägre = lägre risk”. A fixed ±2.5 domain is **wrong** — the composite KRI's spread is ≈0.43σ, so it compressed all 290 municipalities into one shade.
+- **Basemap:** Esri `World_Light_Gray_Base` via `src.config.MAP_TILES`; center ~ Sweden, `zoom_start=5`, `scrollWheelZoom=False`. CARTO tiles must **not** be used — `basemaps.cartocdn.com` now watermarks anonymous requests with “API KEY REQUIRED”.
 - **Style:** fill from colormap; stroke `#CCCCCC` weight 0.5; highlight stroke `#1A1A2E` weight 2.
 - **Tooltip:** `GeoJsonTooltip` with fields/aliases for kommun, risk, KRI, rank, skuld, unemployment, population growth, tax — **sticky** tooltips, `tooltip_css` matches card tooltip aesthetic (white, border, shadow, Source Sans).
 - **Missing geo:** `st.warning` if `data/geo/kommuner.geojson` missing.

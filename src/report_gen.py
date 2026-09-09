@@ -35,6 +35,8 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.frames import Frame
 
+from src.risk_scale import RiskScale
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -225,10 +227,20 @@ class _KRIDocTemplate(BaseDocTemplate):
 # Drawing helpers
 # ---------------------------------------------------------------------------
 
-def _distribution_drawing(kri_scores: list[float], width: float, height: float) -> Drawing:
-    """Return a reportlab Drawing with a binned histogram coloured by risk zone."""
+def _distribution_drawing(
+    kri_scores: list[float],
+    width: float,
+    height: float,
+    scale: RiskScale | None = None,
+) -> Drawing:
+    """Return a reportlab Drawing with a binned histogram coloured by risk zone.
+
+    Uses the same empirical percentiles as the dashboard and the risk_class
+    column, so the PDF cannot disagree with the app it was exported from.
+    """
+    scale = scale or RiskScale.from_scores(kri_scores)
     n_bins = 20
-    lo, hi = -2.5, 2.5
+    lo, hi = -scale.extent, scale.extent
     step = (hi - lo) / n_bins
     edges = [lo + i * step for i in range(n_bins + 1)]
     counts = [0] * n_bins
@@ -245,12 +257,7 @@ def _distribution_drawing(kri_scores: list[float], width: float, height: float) 
         x0 = 20 + i * bar_w
         bh = (cnt / max_count) * chart_h
         center = edges[i] + step / 2
-        if center < -0.6745:
-            fill = C_LOW
-        elif center > 0.6745:
-            fill = C_HIGH
-        else:
-            fill = C_MED
+        fill = {"Låg": C_LOW, "Hög": C_HIGH, "Medel": C_MED}[scale.classify(center)]
         r = Rect(x0, 10, bar_w - 1, bh, fillColor=fill, strokeColor=None)
         d.add(r)
 
@@ -258,7 +265,9 @@ def _distribution_drawing(kri_scores: list[float], width: float, height: float) 
     d.add(Line(20, 10, width - 20, 10, strokeColor=C_BORDER, strokeWidth=0.5))
 
     # Axis labels
-    for label, xpos in [("-2,5", 20), ("0", width / 2), ("+2,5", width - 20)]:
+    _lo_lbl = f"{-scale.extent:.1f}".replace(".", ",")
+    _hi_lbl = f"+{scale.extent:.1f}".replace(".", ",")
+    for label, xpos in [(_lo_lbl, 20), ("0", width / 2), (_hi_lbl, width - 20)]:
         d.add(String(xpos, 1, label, fontName="Helvetica", fontSize=7, fillColor=C_MUTED,
                      textAnchor="middle"))
 
@@ -435,7 +444,7 @@ def _page1_cover(canvas: Any, doc: Any, report_year: int) -> None:
 
 def generate_report(
     kri_df: pd.DataFrame | None = None,
-    output_path: Path | None = None,
+    output_path: Path | str | None = None,
     report_year: int = 2024,
 ) -> bytes:
     """Generate the KRI PDF report and return PDF bytes.
@@ -693,7 +702,7 @@ def generate_report(
 
     # Distribution chart + trend chart side by side
     chart_col_w = CONTENT_W / 2 - 0.3 * cm
-    dist_d = _distribution_drawing(kri_scores_list, chart_col_w, 130)
+    dist_d = _distribution_drawing(kri_scores_list, chart_col_w, 130, RiskScale.from_scores(kri_scores_list))
     trend_d = _trend_drawing(yearly_avg, chart_col_w, 130)
 
     charts_table = Table(
@@ -795,6 +804,7 @@ def generate_report(
     pdf_bytes = buf.getvalue()
 
     if output_path is not None:
+        output_path = Path(output_path)  # accept str paths from callers/CLI
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(pdf_bytes)
         logger.info("PDF saved to %s (%d bytes)", output_path, len(pdf_bytes))

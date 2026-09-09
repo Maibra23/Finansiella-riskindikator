@@ -27,6 +27,7 @@ from app.styles.theme import (
 )
 from src.clustering import get_peer_municipalities
 from src.config import MUNICIPALITIES, SWEDISH_LABELS
+from src.risk_scale import RiskScale
 from src.validators import get_municipality_flags
 
 # ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ for yr in all_years:
     rikssnitt_vals.append(float(yr_df["kri_score"].mean()))
 
 trend_series = {selected_name: muni_vals, "Rikssnitt": rikssnitt_vals}
-trend_opts = build_line_trend(all_years, trend_series)
+trend_opts = build_line_trend(all_years, trend_series, RiskScale.pooled(kri_df))
 st_echarts(trend_opts, height="360px", key=f"ka_trend_{selected_code}_{selected_year}")
 
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)

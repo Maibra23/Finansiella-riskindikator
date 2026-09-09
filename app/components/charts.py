@@ -8,19 +8,16 @@ Function names and comments are in English.
 from __future__ import annotations
 
 import copy
-import json
-from functools import lru_cache
-from pathlib import Path
+import math
 from typing import Any
-
-import pandas as pd
 
 from app.styles.theme import (
     get_axis_style,
     get_echarts_base_options,
     get_tooltip_style,
 )
-from src.config import COLORS, DIVERGING_SCALE, MUNICIPALITIES
+from src.config import COLORS
+from src.risk_scale import RiskScale
 
 # ---------------------------------------------------------------------------
 # Local JsCode helper — wraps a JS function string with the placeholder
@@ -34,9 +31,6 @@ def _js(code: str) -> str:
     """Wrap *code* so streamlit-echarts evaluates it as JavaScript."""
     return f"{_JS_PLACEHOLDER}{code}{_JS_PLACEHOLDER}"
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "kommuner.geojson"
-CENTROIDS_CSV = PROJECT_ROOT / "data" / "geo" / "kommun_centroids.csv"
 
 # ---------------------------------------------------------------------------
 # Shared tooltip CSS constants — reused across all formatter strings
@@ -56,62 +50,34 @@ _TT_MUTED = "color:#6B7280;font-size:11px;line-height:1.5"
 _TT_FTR = "color:#9CA3AF;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px solid #F3F4F6;line-height:1.45"
 _TT_DIVIDER = "border-top:1px solid #F3F4F6;margin:6px 0"
 
-# Module-level map: municipality_code -> (lat, lon); filled by _load_municipality_coords()
-MUNICIPALITY_COORDS: dict[str, tuple[float, float]] = {}
+# Radar frame floor: keeps a stable +-2.5 span for the ~87 % of municipalities
+# whose z-scores fit inside it, so charts stay comparable between selections.
+RADAR_MIN_EXTENT = 2.5
 
 
-@lru_cache(maxsize=1)
-def _load_municipality_coords() -> dict[str, tuple[float, float]]:
-    """Load (lat, lon) per municipality from CSV or GeoJSON."""
-    coords: dict[str, tuple[float, float]] = {}
-
-    if CENTROIDS_CSV.exists():
-        df = pd.read_csv(CENTROIDS_CSV)
-        if {"municipality_code", "lat", "lon"}.issubset(df.columns):
-            for _, row in df.iterrows():
-                code = str(row["municipality_code"]).zfill(4)
-                coords[code] = (float(row["lat"]), float(row["lon"]))
-            return coords
-
-    if GEOJSON_PATH.exists():
-        with open(GEOJSON_PATH, encoding="utf-8") as fh:
-            gj = json.load(fh)
-        for feat in gj.get("features", []):
-            props = feat.get("properties") or {}
-            code = str(props.get("id", "")).zfill(4)
-            if not code or code == "0000":
-                continue
-            gp = props.get("geo_point_2d")
-            if gp and len(gp) >= 2:
-                lat, lon = float(gp[0]), float(gp[1])
-                coords[code] = (lat, lon)
-        if coords:
-            return coords
-
-    # Fallback: no geometry — caller should still run; map may be empty
-    return {}
+def _bin_color(bin_center: float, scale: RiskScale) -> str:
+    """Colour a bar by the risk zone its centre falls in."""
+    return {
+        "Låg": COLORS["low_risk"],
+        "Hög": COLORS["high_risk"],
+        "Medel": COLORS["medium_risk"],
+    }[scale.classify(bin_center)]
 
 
-def _ensure_coords() -> dict[str, tuple[float, float]]:
-    global MUNICIPALITY_COORDS
-    if not MUNICIPALITY_COORDS:
-        MUNICIPALITY_COORDS = _load_municipality_coords()
-    return MUNICIPALITY_COORDS
+def build_distribution_histogram(
+    kri_scores: list[float],
+    median: float,
+    scale: RiskScale | None = None,
+) -> dict[str, Any]:
+    """Vertical histogram with median mark line, binned over the risk scale.
 
-
-def _bin_color(bin_center: float) -> str:
-    """Colour bar by risk zone using normal quartile thresholds on the index scale."""
-    if bin_center < -0.6745:
-        return COLORS["low_risk"]
-    if bin_center > 0.6745:
-        return COLORS["high_risk"]
-    return COLORS["medium_risk"]
-
-
-def build_distribution_histogram(kri_scores: list[float], median: float) -> dict[str, Any]:
-    """Vertical histogram (24 bins on [-2.5, 2.5]) with median mark line."""
+    Pass *scale* built from the unfiltered population so the zone colours match
+    the risk classes shown in the tables; it is otherwise derived from
+    *kri_scores*, which is only correct when those are unfiltered.
+    """
+    scale = scale or RiskScale.from_scores(kri_scores)
     n_bins = 24
-    lo, hi = -2.5, 2.5
+    lo, hi = -scale.extent, scale.extent
     step = (hi - lo) / n_bins
     edges = [lo + i * step for i in range(n_bins + 1)]
     counts = [0] * n_bins
@@ -124,7 +90,9 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             i = min(int((x - lo) / step), n_bins - 1)
         counts[i] += 1
 
-    categories = [f"{edges[i]:.1f}" for i in range(n_bins)]
+    # Two decimals: bins are narrower than the old fixed ±2.5 axis, so one
+    # decimal would collide on adjacent categories and blur the tooltip range.
+    categories = [f"{edges[i]:.2f}" for i in range(n_bins)]
     bar_data: list[dict[str, Any]] = []
     for i in range(n_bins):
         center = edges[i] + step / 2
@@ -132,7 +100,7 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             {
                 "value": counts[i],
                 "itemStyle": {
-                    "color": _bin_color(center),
+                    "color": _bin_color(center, scale),
                     "borderRadius": [2, 2, 0, 0],
                 },
             }
@@ -146,8 +114,8 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
     else:
         median_idx = min(int((median - lo) / step), n_bins - 1)
 
-    idx_low = max(0, int((-0.6745 - lo) / step))
-    idx_high = min(n_bins, int((0.6745 - lo) / step) + 1)
+    idx_low = max(0, int((scale.low - lo) / step))
+    idx_high = min(n_bins, int((scale.high - lo) / step) + 1)
 
     base = copy.deepcopy(get_echarts_base_options())
     base["grid"] = {"left": 56, "right": 28, "top": 20, "bottom": 70, "containLabel": True}
@@ -161,8 +129,9 @@ def build_distribution_histogram(kri_scores: list[float], median: float) -> dict
             "var x=p[0],lo=parseFloat(x.axisValue),hi=lo+" + _step_val + ";"
             "var d=x.data,n=(d&&typeof d==='object'&&'value' in d)?d.value:(typeof x.value==='number'?x.value:0);"
             "var pct=(n/290*100).toFixed(1).replace('.',',');"
-            "var z=lo<-0.6745?'Låg risk':lo>=0.6745?'Hög risk':'Medel risk';"
-            "var c=lo<-0.6745?'#2E7D5B':lo>=0.6745?'#B94A48':'#D4A03C';"
+            f"var z=lo<{scale.low:.4f}?'Låg risk':lo>{scale.high:.4f}?'Hög risk':'Medel risk';"
+            f"var c=lo<{scale.low:.4f}?'{COLORS['low_risk']}':"
+            f"lo>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk']}';"
             "return '<b>KRI '+lo.toFixed(2).replace('.',',')+' \\u2013 '+hi.toFixed(2).replace('.',',')+'</b><br/>'"
             "+'<span style=\"background:'+c+';color:#fff;border-radius:3px;padding:1px 6px;font-size:10px\">'+z+'</span><br/><br/>'"
             "+'Antal: <b>'+n+'</b> / 290 ('+pct+'\\u202f%)';}"
@@ -301,8 +270,17 @@ def build_radar(
     national_avg: list[float],
     indicators: list[str],
 ) -> dict[str, Any]:
-    """Radar chart: selected municipality vs Rikssnitt."""
-    ind = [{"name": n, "max": 2.5, "min": -2.5} for n in indicators]
+    """Radar chart: selected municipality vs Rikssnitt.
+
+    These axes carry the *individual* z-scores, which really are standardised —
+    but their tails are long (z_tax_base reaches -7.5), so a fixed +-2.5 frame
+    silently clipped 37 of 290 municipalities in 2024.  The frame therefore
+    starts at +-RADAR_MIN_EXTENT and grows to fit whatever is plotted.
+    """
+    plotted = [abs(v) for v in list(municipality_values) + list(national_avg)]
+    widest = max(plotted) if plotted else 0.0
+    axis_max = max(RADAR_MIN_EXTENT, math.ceil(widest * 2) / 2)
+    ind = [{"name": n, "max": axis_max, "min": -axis_max} for n in indicators]
     # Build indicator names JS array for tooltip
     ind_js = "[" + ",".join(f'"{n}"' for n in indicators) + "]"
     base = copy.deepcopy(get_echarts_base_options())
@@ -366,8 +344,17 @@ def build_radar(
     return base
 
 
-def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> dict[str, Any]:
-    """KRI trend lines with optional risk zone bands."""
+def build_line_trend(
+    years: list[int],
+    series_dict: dict[str, list[float]],
+    scale: RiskScale | None = None,
+) -> dict[str, Any]:
+    """KRI trend lines with risk zone bands.
+
+    Zone boundaries drift year to year, so *scale* should be pooled across the
+    whole period on display (see ``RiskScale.pooled``).
+    """
+    scale = scale or RiskScale.from_scores([v for vals in series_dict.values() for v in vals])
     year_str = [str(y) for y in years]
     base = copy.deepcopy(get_echarts_base_options())
     base["tooltip"] = {
@@ -382,8 +369,9 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
             "var v=typeof p[i].value==='number'?p[i].value:null;"
             "if(v===null||isNaN(v))continue;"
             "var s=v.toFixed(2).replace('.',',');"
-            "var z=v<-0.6745?'L\\u00e5g':v>0.6745?'H\\u00f6g':'Medel';"
-            "var c=v<-0.6745?'#2E7D5B':v>0.6745?'#B94A48':'#D4A03C';"
+            f"var z=v<{scale.low:.4f}?'L\\u00e5g':v>{scale.high:.4f}?'H\\u00f6g':'Medel';"
+            f"var c=v<{scale.low:.4f}?'{COLORS['low_risk']}':"
+            f"v>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk']}';"
             "o+='<span style=\"color:'+p[i].color+'\">\\u25cf</span> '"
             "+p[i].seriesName+': <b>'+s+'</b> '"
             "+'<span style=\"color:'+c+';font-size:11px\">('+z+')</span><br/>';}"
@@ -447,15 +435,25 @@ def build_line_trend(years: list[int], series_dict: dict[str, list[float]]) -> d
             }
         )
     base["series"] = series_list
-    # Risk zone markArea (approximate KRI scale)
+    # Risk zone bands, anchored on the same percentiles that set risk_class
     if series_list:
+        band_edge = scale.extent
         base["series"][0]["markArea"] = {
             "silent": True,
             "itemStyle": {"opacity": 0.04},
             "data": [
-                [{"yAxis": -3, "itemStyle": {"color": COLORS["low_risk"]}}, {"yAxis": -0.6745}],
-                [{"yAxis": -0.6745, "itemStyle": {"color": COLORS["medium_risk"]}}, {"yAxis": 0.6745}],
-                [{"yAxis": 0.6745, "itemStyle": {"color": COLORS["high_risk"]}}, {"yAxis": 3}],
+                [
+                    {"yAxis": -band_edge, "itemStyle": {"color": COLORS["low_risk"]}},
+                    {"yAxis": scale.low},
+                ],
+                [
+                    {"yAxis": scale.low, "itemStyle": {"color": COLORS["medium_risk"]}},
+                    {"yAxis": scale.high},
+                ],
+                [
+                    {"yAxis": scale.high, "itemStyle": {"color": COLORS["high_risk"]}},
+                    {"yAxis": band_edge},
+                ],
             ],
         }
     return base
@@ -521,148 +519,6 @@ def build_grouped_bars_comparison(
             }
         )
     base["series"] = series
-    return base
-
-
-def _scale_debt_to_size(debt: float, dmin: float, dmax: float) -> float:
-    """Map debt_per_capita to [6, 18] when population is unavailable."""
-    if dmax <= dmin:
-        return 12.0
-    t = (debt - dmin) / (dmax - dmin)
-    return 6 + t * 12
-
-
-def build_sweden_geo_scatter(kri_df: pd.DataFrame, year: int) -> dict[str, Any]:
-    """Scatter plot of municipality centroids (lon/lat); colour by KRI (diverging scale).
-
-    Uses Cartesian axes (not geo.map) so no ECharts map registration is required —
-    ``geo.map: \"world\"`` needs a registered GeoJSON, which caused runtime errors
-    in streamlit-echarts when the map was missing.
-    """
-    coords = _ensure_coords()
-    sub = kri_df[kri_df["year"] == year].copy()
-    if sub.empty:
-        sub = kri_df.copy()
-
-    debts = sub["debt_per_capita"].astype(float)
-    dmin, dmax = float(debts.min()), float(debts.max())
-
-    enriched: list[dict[str, Any]] = []
-    for _, row in sub.iterrows():
-        code = str(row["municipality_code"]).zfill(4)
-        lat_lon = coords.get(code)
-        if lat_lon is None:
-            continue
-        lat, lon = lat_lon
-        kri = float(row["kri_score"])
-        rnk = int(row["rank"])
-        risk = str(row["risk_class"])
-        name = MUNICIPALITIES.get(code, str(row.get("municipality_name", code)))
-        debt = float(row["debt_per_capita"])
-        unemp = float(row.get("unemployment", 0))
-        pop_growth = float(row.get("population_growth", 0))
-        tax_base = float(row.get("tax_base_relative", 0))
-        size = _scale_debt_to_size(debt, dmin, dmax)
-        # value: [lon, lat, kri_score, rank, risk_class, debt, unemployment, pop_growth, tax_base]
-        enriched.append(
-            {
-                "name": name,
-                "value": [lon, lat, kri, rnk, risk, debt, unemp, pop_growth, tax_base],
-                "symbolSize": size,
-                "itemStyle": {"opacity": 0.85, "borderColor": "#FFFFFF", "borderWidth": 0.6},
-            }
-        )
-
-    base = copy.deepcopy(get_echarts_base_options())
-    base["grid"] = {
-        "left": 60,
-        "right": 28,
-        "top": 16,
-        "bottom": 100,
-        "containLabel": True,
-    }
-    base["tooltip"] = {
-        **get_tooltip_style(),
-        "trigger": "item",
-        "formatter": _js(
-            "function(p){"
-            "var v=p.value||[];"
-            "var kri=v[2]!=null?Number(v[2]).toFixed(2).replace('.',','):'-';"
-            "var rk=v[4]||'-';"
-            "var rc=rk==='H\\u00f6g'?'#B94A48':rk==='Medel'?'#D4A03C':'#2E7D5B';"
-            "var debt=v[5]!=null?Math.round(v[5]).toLocaleString('sv-SE')+' kr':'-';"
-            "var unemp=v[6]!=null?Number(v[6]).toFixed(1).replace('.',',')+' %':'-';"
-            "return '<b>'+p.name+'</b><br/>'"
-            "+'<span style=\"background:'+rc+';color:#fff;border-radius:3px;padding:1px 6px;font-size:10px\">'+rk+'</span>'"
-            "+' Rang '+(v[3]||'-')+' / 290<br/><br/>'"
-            "+'KRI: <b>'+kri+'</b><br/>'"
-            "+'Skuld: '+debt+'<br/>'"
-            "+'Arbetsl\\u00f6shet: '+unemp;}"
-        ),
-    }
-
-    # Sweden geographic bounding box — show lat/lon axes to give spatial scale context
-    _geo_axis_label: dict[str, Any] = {
-        "show": True,
-        "color": COLORS["text_tertiary"],
-        "fontSize": 9,
-        "fontFamily": "Source Sans Pro",
-    }
-    base["xAxis"] = {
-        **get_axis_style("value"),
-        "type": "value",
-        "min": 10.8,
-        "max": 24.4,
-        "scale": True,
-        "name": "Longitud (°E)",
-        "nameLocation": "middle",
-        "nameGap": 28,
-        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 10, "fontFamily": "Source Sans Pro"},
-        "axisLabel": {**_geo_axis_label, "formatter": "{value}°"},
-        "axisLine": {"show": False},
-        "axisTick": {"show": False},
-        "splitLine": {"show": True, "lineStyle": {"color": COLORS["grid"], "opacity": 0.3}},
-    }
-    base["yAxis"] = {
-        **get_axis_style("value"),
-        "type": "value",
-        "min": 55.0,
-        "max": 69.3,
-        "scale": True,
-        "name": "Latitud (°N)",
-        "nameLocation": "middle",
-        "nameGap": 38,
-        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 10, "fontFamily": "Source Sans Pro"},
-        "axisLabel": {**_geo_axis_label, "formatter": "{value}°"},
-        "axisLine": {"show": False},
-        "axisTick": {"show": False},
-        "splitLine": {"show": True, "lineStyle": {"color": COLORS["grid"], "opacity": 0.3}},
-    }
-    base["visualMap"] = {
-        "min": -2.5,
-        "max": 2.5,
-        "left": 20,
-        "bottom": 16,
-        "orient": "horizontal",
-        "itemWidth": 12,
-        "itemHeight": 140,
-        "text": ["Hög risk", "Låg risk"],
-        "textStyle": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 10,
-            "fontFamily": "Source Sans Pro",
-        },
-        "inRange": {"color": list(DIVERGING_SCALE)},
-        "calculable": False,
-        "dimension": 2,
-    }
-    base["series"] = [
-        {
-            "name": "KRI",
-            "type": "scatter",
-            "data": enriched,
-        }
-    ]
     return base
 
 

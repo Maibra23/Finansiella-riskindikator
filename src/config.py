@@ -143,6 +143,25 @@ RISK_CLASS_COLORS = {
 }
 
 # =============================================================================
+# MAP BASEMAP
+# =============================================================================
+# CARTO withdrew anonymous access to basemaps.cartocdn.com — their tiles are now
+# watermarked "API KEY REQUIRED". Esri's World Light Gray Base is keyless and its
+# neutral grey matches the dashboard palette without competing with the choropleth.
+MAP_TILES = {
+    "url": (
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/"
+        "World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+    ),
+    "attribution": "Tiles &copy; Esri — Esri, DeLorme, NAVTEQ",
+    "name": "Ljus gråskala",
+    "max_zoom": 16,
+    # Fallback fill drawn behind the tiles so the map degrades to a clean canvas
+    # rather than a black void if the tile host is unreachable.
+    "background": "#F2F3F5",
+}
+
+# =============================================================================
 # TYPOGRAPHY
 # =============================================================================
 

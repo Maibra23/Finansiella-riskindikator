@@ -29,6 +29,7 @@ from app.styles.theme import (
     render_page_header,
 )
 from src.config import MUNICIPALITIES, SWEDISH_LABELS
+from src.risk_scale import RiskScale
 
 # ---------------------------------------------------------------------------
 # Page setup
@@ -325,7 +326,7 @@ for yr in all_years:
     rikssnitt.append(float(yr_data.mean()) if not yr_data.empty else float("nan"))
 series_dict["Rikssnitt"] = rikssnitt
 
-trend_opts = build_line_trend(all_years, series_dict)
+trend_opts = build_line_trend(all_years, series_dict, RiskScale.pooled(kri_df))
 st_echarts(trend_opts, height="380px", key=f"rd_trend_{selected_year}")
 
 # ---------------------------------------------------------------------------

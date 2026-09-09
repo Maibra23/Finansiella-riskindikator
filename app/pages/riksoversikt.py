@@ -27,6 +27,7 @@ from app.styles.theme import (
     render_page_header,
 )
 from src.config import MUNICIPALITIES, SWEDISH_LABELS
+from src.risk_scale import RiskScale
 
 # KPI hover texts (Riksöversikt row) — kort förklaring av mått och jämförelse
 _KPI_TIP_MEDIAN_KRI = (
@@ -343,6 +344,10 @@ if not scores:
     scores = year_df["kri_score"].astype(float).tolist()
     median_kri = float(year_df["kri_score"].median())
 
+# Built from the unfiltered year: the zone boundaries must stay identical to the
+# risk classes shown in the tables, which a risk filter must not shift.
+_risk_scale = RiskScale.for_year(kri_df, selected_year)
+
 map_col, dist_col = st.columns([1.55, 1.0], gap="medium")
 
 _risk_key = "alla" if not selected_risks else "-".join(sorted(selected_risks))
@@ -362,8 +367,10 @@ with map_col:
         st.caption(
             "**Geografisk fördelning** visar varje kommuns geografiska polygon fylld med en färg "
             "som återger KRI-poängen: **grön** = låg risk, **gul** = medel, **röd** = hög. "
-            "Färgskalan sträcker sig från −2,5 (lägst risk) till +2,5 (högst risk) och visas som "
-            "legend längst ner i kartan. Hovra över en kommun för detaljerad information om "
+            "Färgskalan är centrerad på 0 (rikssnittet) och spänner över det valda årets faktiska "
+            "spridning; brytpunkterna mot grönt och rött ligger på 25:e och 75:e percentilen, "
+            "samma gränser som riskklasserna i tabellerna. Legenden visas längst ner i kartan. "
+            "Hovra över en kommun för detaljerad information om "
             "KRI-poäng, rang, skuld per capita, arbetslöshet, befolkningstillväxt och skattekraft. "
             "Kartan kan panoreras och zoomas. Riskfiltret i sidopanelen påverkar vilka kommuner "
             "som inkluderas i beräkningarna ovan, men kartan visar alltid det valda årets data."
@@ -393,15 +400,19 @@ with dist_col:
             raw_opt = build_raw_indicator_histogram(raw_vals, "Skuld per capita", "kr")
             st_echarts(options=raw_opt, height="400px", key=f"raw_hist_{selected_year}_{_risk_key}")
         else:
-            hist_opt = build_distribution_histogram(scores, median_kri)
+            # Scale from the unfiltered year so zone colours match risk_class
+            hist_opt = build_distribution_histogram(scores, median_kri, _risk_scale)
             st_echarts(options=hist_opt, height="400px", key=f"dist_{selected_year}_{_risk_key}")
     with st.expander("Om fördelningsgrafen", expanded=False):
         st.caption(
             "**Normaliserad KRI** visar det sammansatta riskindexet som viktat z-poänggenomsnitt "
             "av fem indikatorer (skuld, arbetslöshet, försörjningskvot, befolkningstillväxt, "
             "skattekraft). Värden nära 0 är genomsnittliga; negativa värden indikerar lägre risk "
-            "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk (KRI < −0,67), "
-            "gula = medel, röda = hög (KRI > +0,67). Den streckade linjen visar medianen. "
+            "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk "
+            f"(KRI under {_fmt_decimal(_risk_scale.low, 2)}), gula = medel, röda = hög "
+            f"(KRI över +{_fmt_decimal(_risk_scale.high, 2)}). Brytpunkterna är årets 25:e "
+            "och 75:e percentil — samma gränser som riskklasserna i tabellerna. "
+            "Den streckade linjen visar medianen. "
             "**Rådata (skuld)** visar skuld per capita i kronor *innan* z-poängsnormalisering, "
             "vilket illustrerar hur indexet omvandlar absoluta värden till jämförbara poäng."
         )
