@@ -650,8 +650,10 @@ def generate_report(
         "hög arbetslöshet och en åldrande befolkning med låg skattekraft.",
         "Storstadskommuner och förorter med stark skattebas (t.ex. Danderyd, Täby, Solna) "
         "uppvisar genomgående låg risk under hela analysperioden.",
-        "Covidpandemin 2020 medförde ett tillfälligt trendbrott där kommuner med högrisk "
-        "ökade kraftigt, följt av en partiell återhämtning mellan 2021 och 2022.",
+        "Rangordningen är stabil över tid: rangkorrelationen mellan på varandra följande "
+        "år är 0,97 och 27 kommuner har klassats som högrisk varje år sedan 2010. "
+        "Spridningen mellan kommuner har samtidigt minskat - standardavvikelsen i KRI "
+        "har gått från 0,58 (2010) till 0,43 (2024).",
     ]
     for f in findings:
         story.append(Paragraph(f"• {f}", S["body"]))
@@ -858,12 +860,18 @@ def generate_report(
         f"Strukturell ekonomisk sårbarhet bland svenska kommuner är bestående och geografiskt "
         f"koncentrerad. Kommuner med högrisk återfinns systematiskt i glesbygd och bruksorter, "
         f"medan kommuner med lågrisk domineras av storstadsförorter med stark skattebas.",
-        "Skuld per capita och arbetslöshet förklarar sammantaget 50 % av variansen i KRI och "
-        "är de starkaste riskdrivarna.",
-        f"Pandemin 2020 gav en tydlig negativ impuls: andelen kommuner med högrisk ökade under "
-        f"2020 och 2021, men de flesta kommuner återhämtade sig till 2022.",
-        "Tidsseriestabilitet är hög (korrelation mellan på varandra följande år > 0,85), vilket bekräftar att "
-        "KRI mäter strukturell, inte konjunkturell, sårbarhet.",
+        "Arbetslöshet och skattekraft är de enskilt starkaste riskdrivarna och står för "
+        "26 % respektive 22 % av variansen i KRI. Skuld per capita väger tyngst i formeln "
+        "(0,25) men bidrar minst till spridningen (12 %), eftersom hög skuld i praktiken "
+        "förekommer både i växande storstadskommuner och i krympande glesbygdskommuner.",
+        "Riskklasserna är relativa och definieras av kvartiler inom varje år. Andelen "
+        "kommuner i varje klass är därför konstant (25 % Hög, 50 % Medel, 25 % Låg) och "
+        "kan inte användas för att avläsa om riket som helhet förbättrats eller försämrats. "
+        "Måttet visar hur kommuner förhåller sig till varandra, inte till en absolut nivå.",
+        "Tidsseriestabilitet är hög: rangkorrelationen mellan på varandra följande år är "
+        "0,97, och mellan 2010 och 2024 fortfarande 0,63. Det bekräftar att KRI mäter "
+        "strukturell, inte konjunkturell, sårbarhet. 27 kommuner har klassats som Hög risk "
+        "varje år under hela perioden.",
     ]
     for c in conclusions:
         story.append(Paragraph(f"• {c}", S["body"]))

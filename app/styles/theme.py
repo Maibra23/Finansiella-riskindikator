@@ -222,7 +222,7 @@ def apply_streamlit_theme() -> None:
         color: rgba(255, 255, 255, 0.72) !important;
     }}
 
-    /* Removed broad .stApp > … > div {{ padding-top }} — it drifted main vs sidebar vertically */
+    /* Borttagen: bred .stApp > … > div {{ padding-top }} gav vertikal glidning mellan huvudyta och sidopanel */
 
     [data-testid="stVerticalBlock"] > div {{
         gap: 0.5rem;

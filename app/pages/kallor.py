@@ -99,7 +99,7 @@ st.markdown(
         eyebrow="KRI · Kommunal Finansiell Riskindikator",
         title="Datakällor & Metod",
         subtitle="Samtliga variabler i indexet hämtas från offentliga, öppna datakällor",
-        year="2010–2024",
+        year="2010 - 2024",
     ),
     unsafe_allow_html=True,
 )
@@ -141,7 +141,7 @@ sources_df = pd.DataFrame(
             "Kolumnnamn": "dependency_ratio",
             "Vikt": "20 %",
             "Källsystem": "SCB PxWeb API",
-            "Serie": "BefolkningNy, åldrar 0–100+",
+            "Serie": "BefolkningNy, åldrar 0 - 100+",
             "Täckning": "290 kommuner × 15 år",
         },
         {
@@ -179,8 +179,8 @@ st.dataframe(
 
 st.markdown(
     "<p style='font-size:0.82rem;color:#6B7280;margin-top:4px'>"
-    "Samtliga fem variabler uppnår <strong>100 % täckning</strong> — inga saknade värden "
-    "för någon av de 290 kommunerna under analysperioden 2010–2024."
+    "Samtliga fem variabler uppnår <strong>100 % täckning</strong>: inga saknade värden "
+    "för någon av de 290 kommunerna under analysperioden 2010 - 2024."
     "</p>",
     unsafe_allow_html=True,
 )
@@ -190,7 +190,7 @@ st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # Section 2: API details (collapsible)
 # ---------------------------------------------------------------------------
-with st.expander("API-dokumentation — hur data hämtas från respektive källa", expanded=False):
+with st.expander("API-dokumentation: hur data hämtas från respektive källa", expanded=False):
     col_scb, col_kolada = st.columns(2, gap="large")
 
     with col_scb:
@@ -241,8 +241,8 @@ GET /v2/data/kpi/N03937/year/2010,2011,...,2024""",
             language="bash",
         )
         st.markdown(
-            "**KPI:** `N03937` — Andel öppet arbetslösa och personer i program med aktivitetsstöd, "
-            "16–64 år (% av befolkningen)"
+            "**KPI:** `N03937`: Andel öppet arbetslösa och personer i program med aktivitetsstöd, "
+            "16 - 64 år (% av befolkningen)"
         )
 
 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)

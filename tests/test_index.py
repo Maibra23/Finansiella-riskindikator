@@ -308,3 +308,66 @@ class TestDistributionStats:
     def test_invalid_year_raises(self, kri_df):
         with pytest.raises(ValueError):
             compute_distribution_stats(kri_df, year=1900)
+
+
+@pytest.mark.unit
+class TestReportClaims:
+    """Guards factual claims in the generated PDF against the data.
+
+    Two claims were wrong before this was added: that the share of high-risk
+    municipalities rose during the pandemic (impossible — the classes are
+    quartiles, so the share is fixed at 25% by construction), and that debt and
+    unemployment explain 50% of KRI variance (that is the sum of their weights;
+    the actual variance share is 38%).
+    """
+
+    def test_risk_class_share_is_fixed_by_construction(self, kri_df):
+        """Any narrative about the share of Hög risk changing over time is false."""
+        shares = kri_df.groupby("year")["risk_class"].apply(lambda s: (s == "Hög").mean())
+        assert shares.max() - shares.min() < 0.01, (
+            "Quartile classification must hold the share constant; a varying share "
+            "would mean classify() no longer uses per-year quantiles."
+        )
+
+    def test_report_makes_no_claim_about_a_changing_high_risk_share(self):
+        src = (Path(__file__).resolve().parent.parent / "src" / "report_gen.py").read_text(
+            encoding="utf-8"
+        )
+        for banned in ("högrisk ökade", "andelen kommuner med högrisk ökade"):
+            assert banned not in src, f"report claims a fixed quantity changed: {banned!r}"
+
+    def test_report_does_not_confuse_weight_with_variance_explained(self):
+        src = (Path(__file__).resolve().parent.parent / "src" / "report_gen.py").read_text(
+            encoding="utf-8"
+        )
+        assert "50 % av variansen" not in src
+
+    def test_debt_and_unemployment_variance_share(self, kri_df):
+        """The corrected figure the report now quotes must match the data."""
+        latest = kri_df[kri_df["year"] == kri_df["year"].max()]
+        cols = [c for c in kri_df.columns if c.startswith("contribution_")]
+        cov = latest[cols].cov()
+        total = latest["kri_score"].var()
+        share = (
+            cov["contribution_debt"].sum() + cov["contribution_unemployment"].sum()
+        ) / total
+        assert 0.30 < share < 0.45, f"variance share moved to {share:.1%}; update the report"
+
+
+@pytest.mark.unit
+def test_swedish_ui_check_passes():
+    """The project's own Swedish-copy check must stay green.
+
+    It was failing before the weight-sensitivity work landed; keeping a test on
+    it stops the 9 violations from quietly coming back.
+    """
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_swedish_ui.py"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

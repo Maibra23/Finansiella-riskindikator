@@ -1,306 +1,170 @@
 # Kommunal Finansiell Riskindikator (KRI)
 
-**Datadriven analys av strukturell ekonomisk sårbarhet i Sveriges 290 kommuner**
+**Vilka svenska kommuner är strukturellt ekonomiskt sårbara — och varför?**
 
-> An interactive Streamlit dashboard that ranks all 290 Swedish municipalities on a composite financial vulnerability index, covering 2010–2024.
-
----
-
-## Om projektet
-
-Kommunal Finansiell Riskindikator (KRI) är en interaktiv dashboard som rankar Sveriges 290 kommuner utifrån ett sammansatt finansiellt sårbarhetsindex. Indexet kombinerar fem nyckelvariabler för att identifiera kommuner med strukturell ekonomisk risk.
-
-### Variabler i indexet
-
-| Variabel | Vikt | Riktning |
-|----------|------|----------|
-| Skuld per capita | 25% | Hög = hög risk |
-| Arbetslöshet | 25% | Hög = hög risk |
-| Försörjningskvot | 20% | Hög = hög risk |
-| Befolkningstillväxt (5 år) | 15% | Negativ = hög risk |
-| Skattekraft (% av rikssnitt) | 15% | Låg = hög risk |
-
-### Datakällor
-
-- **SCB Statistikdatabasen** — Balansräkning, befolkning, skattekraft (PxWeb API)
-- **Arbetsförmedlingen / Kolada** — Arbetslöshet (KPI N03937)
-- **Analysperiod:** 2010–2024 (15 år, 4 350 observationer, 0 saknade värden)
+An interactive Streamlit dashboard ranking all 290 Swedish municipalities on a composite
+financial vulnerability index, 2010–2024. 4 350 observations, no missing values.
 
 ---
 
-## Deploy to Streamlit Cloud
+## What this answers
 
-1. Push this repository to GitHub (data files are committed — no pipeline needed at runtime)
-2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**
-3. Select your repository and set:
-   - **Main file path:** `app/main.py`
-   - **Python version:** `3.11`
-4. Click **Deploy** — no secrets or environment variables required
+A municipality's finances are usually judged one number at a time — debt per inhabitant,
+the unemployment rate, the tax base. Each of those, read alone, gives the wrong answer.
+KRI combines five structural indicators into one comparable score so municipalities can be
+ranked against each other, and decomposed to show *what* drives each one's risk.
 
----
+The dashboard is built around four questions.
 
-## Snabbstart (Quick start)
+### 1. Is high debt the same as high risk? No.
 
-```bash
-# Clone
-git clone https://github.com/your-username/kommunal-finansiell-riskindikator.git
-cd kommunal-finansiell-riskindikator
+**Stockholm carries 400 849 kr of debt per inhabitant — the third-highest in Sweden — and
+ranks 126 of 290 (Medel risk). Eskilstuna carries 302 307 kr, a quarter less, and ranks
+8th (Hög risk).** Debt alone inverts the answer.
 
-# One-command setup (creates venv, installs deps, fetches data)
-bash scripts/setup.sh
+The decomposition shows why:
 
-# Run the dashboard
-streamlit run app/main.py
-```
+| Contribution to KRI | Stockholm | Eskilstuna |
+|---|---|---|
+| Debt | **+0.79** | +0.46 |
+| Unemployment | +0.33 | **+0.57** |
+| Dependency ratio | −0.54 | −0.17 |
+| Tax base | −0.45 | +0.06 |
+| **KRI total** | **+0.07** (rank 126) | **+0.92** (rank 8) |
 
----
+Stockholm borrows heavily, but against a young population (dependency ratio 0.60 vs 0.91
+nationally) and a tax base at 131 % of the national average. Eskilstuna borrows less,
+against 4.1 % unemployment and a tax base at 86 %. The first is leverage on a growing
+asset; the second is a structural gap. Kiruna makes the point hardest: **the highest debt
+in Sweden at 523 513 kr per inhabitant, yet rank 67** — 1.2 % unemployment and a 114 % tax
+base absorb it.
 
-## Installation (manual)
+### 2. What actually drives a municipality's risk?
 
-### Requirements
+Not what the weights suggest. Debt carries the joint-largest weight (0.25) but contributes
+**the least to the spread between municipalities — 12 % of variance** — because high debt
+occurs at both ends: in growing city suburbs and in shrinking rural municipalities.
+Unemployment (26 %) and tax base (22 %) do the real separating.
 
-- Python 3.11 or higher
-- pip (Python package manager)
+**Högsby is rank 1, the most vulnerable municipality in Sweden — and its debt is
+unremarkable** (227 932 kr, below several low-risk municipalities). It ranks first on a
+five-year population decline of −10.1 %, a dependency ratio of 1.04, and a tax base at
+75 % of the national average. The **Riskdekomposition** page shows this breakdown for any
+municipality.
 
-### Steps
+### 3. Is this structural or cyclical?
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-username/kommun-risk-dashboard.git
-cd kommun-risk-dashboard
-```
+Structural. Rank correlation between consecutive years is **0.97**, and still **0.63**
+between 2010 and 2024. **27 municipalities have been classified Hög risk every single year
+since 2010.** Positions do move — Malmö went from rank 232 to 41, Jokkmokk from 61 to 246 —
+but slowly, and for reasons visible in the trend charts.
 
-2. Create a virtual environment (recommended):
-```bash
-python -m venv venv
-source venv/bin/activate       # Linux / macOS
-venv\Scripts\activate          # Windows
-```
+> **Read the classes as relative, not absolute.** Risk classes are per-year quartiles, so
+> exactly 25 % of municipalities are Hög risk in every year *by construction*. The share
+> cannot tell you whether Sweden as a whole improved; it tells you how municipalities stand
+> relative to each other.
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### 4. How much of this depends on the weights we chose?
 
-4. Fetch data and build the KRI index:
-```bash
-python scripts/run_pipeline.py
-```
-This fetches all data, cleans it, and builds the KRI index in one step.
-The pipeline saves both `kri_base_data.parquet` and `kri_results.parquet`.
+The weights are argued from public-finance theory, not estimated, so the dashboard
+measures how much the ranking depends on them: each weight is varied by ±0.05, the index
+is recomputed 1 000 times, and every municipality gets a rank interval and a stability
+score.
 
-5. Build the weight-sensitivity band:
-```bash
-python scripts/run_sensitivity.py
-```
-Optional but recommended — see [Weight sensitivity](#weight-sensitivity) below.
-The dashboard runs without it and simply omits the uncertainty columns.
+| 2024, n = 290 | |
+|---|---|
+| Robust (keeps its class in ≥90 % of draws) | 241 |
+| Gränsfall (near a class boundary) | 49 |
+| **Published class is also the most frequent class** | **289 / 290** |
 
-6. Run the dashboard:
-```bash
-streamlit run app/main.py
-```
+The index is corroborated, not overturned. But it does find genuinely fragile cases:
+**Kiruna is published at rank 67 yet could plausibly sit anywhere from 29 to 137**, holding
+the Hög label in only 52 % of draws. It is labelled *gränsfall* rather than presented as a
+fact. Eskilstuna, by contrast, never leaves rank 4–13.
 
----
-
-## Project Structure
-
-```
-kommun-risk-dashboard/
-├── data/
-│   ├── raw/                   # Raw API responses (JSON)
-│   ├── processed/             # kri_base_data.parquet, kri_results.parquet
-│   ├── cache/                 # API response cache (auto-managed)
-│   └── geo/                   # kommuner.geojson, centroids CSV
-├── src/
-│   ├── config.py              # API endpoints, weights, SWEDISH_LABELS, municipality list
-│   ├── data_fetcher.py        # SCBFetcher + KoladaFetcher API clients
-│   ├── data_cleaner.py        # Data cleaning and derived variable computation
-│   ├── index_builder.py       # KRIBuilder: z-scores, weighting, classification
-│   ├── clustering.py          # k-means, peer groups, risk transitions
-│   ├── validators.py          # Data quality checks and municipality flags
-│   └── report_gen.py          # 5-page PDF report generator (reportlab)
-├── app/
-│   ├── main.py                # Streamlit entry point + landing page
-│   ├── pages/
-│   │   ├── riksoversikt.py        # National overview: map, KPIs, distribution
-│   │   ├── riskdekomposition.py   # Risk driver analysis per municipality
-│   │   ├── kommunanalys.py        # Municipality deep dive + peer comparison
-│   │   └── kallor.py              # Data sources and methodology
-│   ├── components/
-│   │   ├── charts.py              # Apache ECharts option builders
-│   │   ├── sweden_choropleth.py   # Folium choropleth map
-│   │   └── landing_visuals.py     # Landing page HTML/SVG fragments
-│   └── styles/
-│       └── theme.py           # Design system, CSS injection, ECharts helpers
-├── docs/
-│   ├── Prd.md                 # Product Requirements Document
-│   ├── METHODOLOGY.md         # Full methodology documentation
-│   └── tasks.md               # 5-day development task plan
-├── tests/
-│   ├── test_index.py          # Weights, z-scores, known municipalities
-│   ├── test_map.py            # Choropleth basemap and colour scale
-│   ├── test_risk_scale.py     # Risk-zone calibration shared by every chart
-│   └── test_sensitivity.py    # Weight-sensitivity layer (97 tests in total)
-├── scripts/
-│   ├── run_pipeline.py        # Full ETL: fetch → clean → build → save
-│   ├── run_sensitivity.py     # Weight-sensitivity band → kri_sensitivity.parquet
-│   ├── verify_pipeline.py     # Pipeline output validation
-│   ├── verify_swedish_ui.py   # Swedish language compliance check
-│   ├── full_data_audit.py     # Comprehensive data quality audit
-│   └── setup.sh               # One-command project setup script
-├── report/                    # Generated PDF reports (gitignored)
-├── .env.example               # Environment variable template
-├── requirements.txt
-└── README.md
-```
+PCA weighting was tested and rejected — PC1 loads negatively on debt in all fifteen years,
+which would rank the most indebted municipalities as the safest. Full argument, plus the
+δ = 0.03 / 0.10 robustness check, in [docs/methodology.md §3.5](docs/methodology.md).
 
 ---
 
-## Technical Details
-
-### Data Pipeline
-
-```
-SCB PxWeb API ──┐
-                ├──► DataCleaner ──► KRIBuilder ──► kri_results.parquet
-Kolada API ─────┘
-```
-
-1. **Fetch** — `SCBFetcher` and `KoladaFetcher` retrieve data via REST APIs with caching and retry logic
-2. **Clean** — `DataCleaner` handles unit conversion, derived variables (dependency ratio, 5-year pop. growth), and merging
-3. **Normalize** — Cross-sectional z-scores per year across all 290 municipalities
-4. **Correct** — Direction correction so that higher z-score always means higher risk
-5. **Compute** — Weighted sum → KRI score per municipality-year
-6. **Classify** — Quantile-based: bottom 25% = Låg, top 25% = Hög, middle = Medel
-7. **Validate** — `DataValidator` flags special municipalities (Gotland, Knivsta, Heby)
-
-### KRI Formula
+## The index
 
 ```
 KRI(i,t) = Σ wk × zk(i,t)
 ```
 
-| Symbol | Meaning |
-|--------|---------|
-| `i` | Municipality |
-| `t` | Year |
-| `wk` | Variable weight (sums to 1.0) |
-| `zk` | Direction-corrected cross-sectional z-score |
+Each variable becomes a cross-sectional z-score per year, direction-corrected so higher
+always means higher risk, then weighted:
 
-### Classification
+| Variable | Weight | Direction | Source |
+|---|---|---|---|
+| Debt per capita | 0.25 | High = high risk | SCB, BalansKn |
+| Unemployment | 0.25 | High = high risk | Kolada N03937 (Arbetsförmedlingen) |
+| Dependency ratio | 0.20 | High = high risk | SCB, BefolkningNy |
+| Population growth (5 yr) | 0.15 | Negative = high risk | SCB, BefolkningNy |
+| Tax base (% of national avg) | 0.15 | Low = high risk | SCB, SkatteKraft |
 
-| Risk class | Threshold | Color |
-|------------|-----------|-------|
-| **Låg** | KRI < 25th percentile | 🟢 `#2E7D5B` |
-| **Medel** | 25th–75th percentile | 🟡 `#D4A03C` |
-| **Hög** | KRI > 75th percentile | 🔴 `#B94A48` |
+**Classification:** per-year quartiles — Låg below p25, Hög above p75, Medel between.
+Robust to outliers, and stable regardless of whether all municipalities move together.
 
-### Weight sensitivity
-
-The weights are argued from public-finance theory, not estimated. Rather than claim
-they are objective, the dashboard measures how much the ranking depends on them:
-each weight is varied by ±0.05, the index is recomputed 1000 times, and every
-municipality gets a rank interval plus a stability score.
-
-| 2024, n = 290 | |
-|---|---|
-| Robust (keeps its class in ≥90% of draws) | 241 |
-| Gränsfall (boundary-fragile) | 49 |
-| **Most frequent class differs from published class** | **1** |
-
-The published index is corroborated, not overturned. PCA weighting was tested and
-rejected — PC1 loads negatively on debt in all fifteen years, which would rank the
-most indebted municipalities as the safest. Full argument and the δ = 0.03 / 0.10
-robustness check in [docs/methodology.md §3.5](docs/methodology.md).
-
-The layer is additive: it never recomputes `kri_score`, `risk_class` or `rank`, and
-lives in its own artefact (`data/processed/kri_sensitivity.parquet`). Delete that
-file and the dashboard renders exactly as it did before.
-
-### Visualization
-
-All charts use **Apache ECharts** via `streamlit-echarts`. Shared styling helpers in `app/styles/theme.py`:
-
-- `get_echarts_base_options()` — grid, animation, background
-- `get_tooltip_style()` — white background tooltip with rounded corners
-- `get_axis_style(type)` — consistent axis styling
-
-Chart builders in `app/components/charts.py`:
-
-| Function | Chart type | Used on |
-|----------|-----------|---------|
-| `build_distribution_histogram()` | Histogram | Riksöversikt |
-| `build_sweden_geo_scatter()` | Scatter map | Riksöversikt |
-| `build_horizontal_contribution_bar()` | Horiz. bars | Riskdekomposition |
-| `build_radar()` | Spider/radar | Riskdekomposition |
-| `build_grouped_bars_comparison()` | Grouped bars | Riskdekomposition |
-| `build_line_trend()` | Line chart | Riskdekomposition, Kommunanalys |
+Full specification, worked examples and limitations: [docs/methodology.md](docs/methodology.md).
 
 ---
 
-## Dashboard Pages
+## Run it
 
-| Page | Description |
-|------|-------------|
-| **Riksöversikt** | National overview: 4 KPI cards, Sweden choropleth map (risk-coloured), KRI distribution histogram, top/bottom 15 risk tables |
-| **Riskdekomposition** | Per-municipality risk driver analysis: contribution bars, radar vs. national avg, multi-municipality grouped bar comparison, KRI trend line |
-| **Kommunanalys** | Municipality deep dive: 6 KPI cards with deltas, KRI trend vs. rikssnitt, 10 peer municipalities table, full historical data table + CSV download, data quality panel |
-| **Källor** | Data sources table, API documentation, licence information |
-
-All UI text is in Swedish. Code identifiers and comments are in English.
-
----
-
-## Running Tests
+Requires Python 3.11+.
 
 ```bash
-pytest tests/ -v
-# 97 tests covering: weights, z-score properties, known municipalities,
-# classification distribution, temporal stability, clustering, peer analysis,
-# choropleth basemap and colour calibration, and the weight-sensitivity layer
+git clone https://github.com/Maibra23/Kommunal-Finansiell-Riskindikator.git
+cd Kommunal-Finansiell-Riskindikator
+pip install -r requirements.txt
+streamlit run app/main.py
 ```
+
+Processed data is committed, so the dashboard runs immediately. To rebuild it from the
+source APIs:
+
+```bash
+python scripts/run_pipeline.py      # fetch -> clean -> build index
+python scripts/run_sensitivity.py   # weight-sensitivity band (optional)
+python scripts/verify_pipeline.py   # validate the output
+pytest                              # 102 tests
+```
+
+**Streamlit Cloud:** point a new app at this repo with main file `app/main.py` and Python
+3.11. No secrets or environment variables required.
 
 ---
 
-## API Documentation
+## Pages
 
-### SCB PxWeb API
+| Page | What it's for |
+|---|---|
+| **Riksöversikt** | National picture — choropleth, KRI distribution, top/bottom 15 with uncertainty intervals |
+| **Riskdekomposition** | Which of the five factors drives one municipality's score, and comparison against up to five peers |
+| **Kommunanalys** | Single-municipality deep dive — KPIs, 2010–2024 trend, similar municipalities, CSV/PDF export |
+| **Källor** | Data sources, API details, the weight-sensitivity method and the rejected PCA alternative |
 
-POST requests to table URLs with JSON query bodies:
-
-```json
-{
-  "query": [
-    {"code": "Region", "selection": {"filter": "vs:RegionKommun07", "values": []}},
-    {"code": "Tid",    "selection": {"filter": "item", "values": ["2010","2024"]}}
-  ],
-  "response": {"format": "json"}
-}
-```
-
-Tables used: `BalansKn` (debt), `BefolkningNy` (population), `SkatteKraft` (tax base), `ResultKn` (income statement)
-
-### Kolada API
-
-REST API for municipal KPIs:
-```
-GET /v2/kpi?title=arbetslöshet          # search KPIs
-GET /v2/data/kpi/N03937/year/2010,...   # fetch unemployment data
-```
+Built with Streamlit and Apache ECharts; the choropleth uses Folium with keyless Esri
+basemap tiles.
 
 ---
 
-## License
+## Data
 
-MIT License — see [LICENSE](LICENSE) for details.
+All data is public and free to use with attribution.
+
+| Source | Covers | Licence |
+|---|---|---|
+| SCB Statistikdatabasen (PxWeb API) | Debt, population, tax base | SCB open licence |
+| Kolada / RKA (KPI N03937) | Unemployment, via Arbetsförmedlingen | CC0 |
+
+Endpoints and request examples are documented in-app on the **Källor** page.
 
 ---
 
-## Contact
-
-For questions about methodology or implementation, see `docs/METHODOLOGY.md`.
-
----
+MIT License — see [LICENSE](LICENSE).
 
 *Källa: SCB, Arbetsförmedlingen/Kolada · KRI v1.0 · 2010–2024*
