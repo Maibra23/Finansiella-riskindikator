@@ -35,7 +35,7 @@ from app.styles.theme import (
 from src.config import SWEDISH_LABELS
 
 # ---------------------------------------------------------------------------
-# Page configuration — must be the very first Streamlit call.
+# Page configuration, must be the very first Streamlit call.
 # ---------------------------------------------------------------------------
 apply_streamlit_theme()
 
@@ -44,7 +44,7 @@ apply_streamlit_theme()
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Laddar data…")
+@st.cache_data(show_spinner="Laddar data...")
 def load_kri_data() -> pd.DataFrame:
     """Load the processed KRI results parquet into memory."""
     parquet_path = PROJECT_ROOT / "data" / "processed" / "kri_results.parquet"
@@ -95,7 +95,7 @@ st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 available_years = sorted(kri_df["year"].unique().tolist())
 default_year = max(available_years)
 
-# ── Year chips ──────────────────────────────────────────────────
+# ── Year chips --------------------------------------------------
 st.sidebar.markdown(
     f'<div class="sidebar-control"><div class="control-label">{SWEDISH_LABELS["select_year"]}</div></div>',
     unsafe_allow_html=True,
@@ -109,7 +109,7 @@ _year_raw = st.sidebar.pills(
 )
 selected_year: int = int(_year_raw) if _year_raw is not None else default_year
 
-# ── Risk filter: colored dot legend + multi-select pills ────────
+# ── Risk filter: colored dot legend + multi-select pills --------
 st.sidebar.markdown(
     f"""
     <div class="sidebar-control">

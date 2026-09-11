@@ -1,5 +1,5 @@
 """
-Page 2: Riskdekomposition — per-municipality risk driver analysis.
+Page 2: Riskdekomposition, per-municipality risk driver analysis.
 
 Charts use streamlit-echarts (Apache ECharts). All user-facing text is in Swedish.
 """
@@ -68,7 +68,7 @@ st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Laddar data…")
+@st.cache_data(show_spinner="Laddar data...")
 def _load() -> pd.DataFrame:
     p = PROJECT_ROOT / "data" / "processed" / "kri_results.parquet"
     df = pd.read_parquet(p)

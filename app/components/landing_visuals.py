@@ -36,7 +36,7 @@ def render_index_weights_html() -> str:
 
 def render_index_flow_svg() -> str:
     """
-    Compact SVG: inputs → KRI → riskklass. Titles share one baseline, centered over each column.
+    Compact SVG: inputs -> KRI -> riskklass. Titles share one baseline, centered over each column.
     """
     p = COLORS["primary"]
     acc = COLORS["accent"]

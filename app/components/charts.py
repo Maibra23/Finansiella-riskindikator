@@ -20,7 +20,7 @@ from src.config import COLORS
 from src.risk_scale import RiskScale
 
 # ---------------------------------------------------------------------------
-# Local JsCode helper — wraps a JS function string with the placeholder
+# Local JsCode helper, wraps a JS function string with the placeholder
 # markers that streamlit-echarts uses to identify executable JavaScript.
 # This avoids importing JsCode (which requires the Streamlit runtime).
 # ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ def _js(code: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Shared tooltip CSS constants — reused across all formatter strings
+# Shared tooltip CSS constants, reused across all formatter strings
 # ---------------------------------------------------------------------------
 # These are Python strings injected into JS formatter template literals.
 _TT_HDR = "font-weight:700;font-size:14px;color:#1A1A2E;margin-bottom:8px;line-height:1.35"
@@ -272,7 +272,7 @@ def build_radar(
 ) -> dict[str, Any]:
     """Radar chart: selected municipality vs Rikssnitt.
 
-    These axes carry the *individual* z-scores, which really are standardised —
+    These axes carry the *individual* z-scores, which really are standardised -
     but their tails are long (z_tax_base reaches -7.5), so a fixed +-2.5 frame
     silently clipped 37 of 290 municipalities in 2024.  The frame therefore
     starts at +-RADAR_MIN_EXTENT and grows to fit whatever is plotted.

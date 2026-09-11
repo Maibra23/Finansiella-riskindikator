@@ -82,7 +82,7 @@ class KRIBuilder:
 
             if std == 0 or np.isnan(std):
                 logger.warning(
-                    "Year %d: std=0 for %s — setting z-scores to 0", year, col
+                    "Year %d: std=0 for %s: setting z-scores to 0", year, col
                 )
                 result[z_col] = 0.0
             else:
@@ -149,9 +149,9 @@ class KRIBuilder:
         Add risk_class and rank columns per year.
 
         risk_class:
-            'Låg'  — below 25th percentile (lower KRI = lower risk)
-            'Hög'  — above 75th percentile
-            'Medel' — in between
+            'Låg' , below 25th percentile (lower KRI = lower risk)
+            'Hög' , above 75th percentile
+            'Medel', in between
 
         rank: 1 = highest KRI (highest risk), ascending.
         """
@@ -175,7 +175,7 @@ class KRIBuilder:
             )
 
             logger.debug(
-                "Year %d — p25=%.3f p75=%.3f | Låg=%d Medel=%d Hög=%d",
+                "Year %d: p25=%.3f p75=%.3f | Låg=%d Medel=%d Hög=%d",
                 year,
                 p25,
                 p75,
@@ -250,7 +250,7 @@ class KRIBuilder:
         hog = (latest["risk_class"] == "Hög").sum()
         med = (latest["risk_class"] == "Medel").sum()
         logger.info(
-            "  [OK] %d classification for year %d — Låg: %d (%.0f%%), Medel: %d (%.0f%%), Hög: %d (%.0f%%)",
+            "  [OK] %d classification for year %d: Låg: %d (%.0f%%), Medel: %d (%.0f%%), Hög: %d (%.0f%%)",
             total, latest_year,
             lag, 100 * lag / total,
             med, 100 * med / total,

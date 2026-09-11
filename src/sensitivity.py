@@ -4,7 +4,7 @@ The KRI weights (0.25 debt, 0.25 unemployment, 0.20 dependency, 0.15 population,
 0.15 tax base) are argued from public-finance theory rather than estimated.  The
 standard objection is that they are therefore arbitrary.
 
-Deriving them from the data instead — PCA on the five z-scores — is not a valid
+Deriving them from the data instead, PCA on the five z-scores, is not a valid
 answer here: PC1 loads *negatively* on debt in every year 2010-2024, so it would
 rank Sweden's most indebted municipalities among its safest, and PC1 carries only
 ~44 % of variance with a second component above the Kaiser threshold.  See
@@ -89,7 +89,7 @@ def sample_weights(config: SensitivityConfig | None = None) -> np.ndarray:
     Each weight is drawn uniformly from ``[w - delta, w + delta]``, then the
     vector is renormalised to sum to 1.  The renormalisation is what makes the
     draw honest: weights must still sum to one, so raising debt necessarily
-    lowers something else — which is exactly the trade-off a critic is pointing
+    lowers something else, which is exactly the trade-off a critic is pointing
     at.  Uniform rather than Dirichlet because "each weight may move up to five
     percentage points" can be explained in a caption, and a reader who disagrees
     with delta can reason about what a different delta would do.
@@ -97,8 +97,8 @@ def sample_weights(config: SensitivityConfig | None = None) -> np.ndarray:
     Renormalising can itself push a weight past delta (a vector whose raw draws
     all landed low gets scaled up), so draws that break the bound are rejected
     rather than kept.  About 84 % survive, the accepted draws stay centred on
-    the nominal weights, and the claim made in the UI — no weight ever moves
-    more than delta — becomes literally true instead of approximately true.
+    the nominal weights, and the claim made in the UI, no weight ever moves
+    more than delta, becomes literally true instead of approximately true.
 
     Returns an ``(n_draws, 5)`` array whose columns follow ``WEIGHT_ORDER``.
     """
@@ -139,7 +139,7 @@ def _summarise_year(
 
     # Cut points are recomputed *inside* each draw. Holding them fixed at the
     # published p25/p75 would measure score movement only, and the question is
-    # class movement — so this reproduces what classify() would have done had
+    # class movement, so this reproduces what classify() would have done had
     # those been the real weights.
     low_cut = np.quantile(scores, LOW_QUANTILE, axis=0)
     high_cut = np.quantile(scores, HIGH_QUANTILE, axis=0)
@@ -171,7 +171,7 @@ def compute_sensitivity(
     """Return one sensitivity row per (municipality, year).
 
     *kri_df* is never mutated.  Output is sorted by (year, municipality_code) so
-    two runs on differently-ordered inputs produce byte-identical parquet — a
+    two runs on differently-ordered inputs produce byte-identical parquet, a
     band that shifts between pipeline runs would undermine trust in the whole
     dashboard.
     """

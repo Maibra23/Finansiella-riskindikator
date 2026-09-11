@@ -21,13 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 _SPECIAL_FLAGS: dict[str, list[str]] = {
     "0980": [
-        "Gotland: Delad redovisning kommun/region (65%/35%) — skuld justerad med faktor 0,65."
+        "Gotland: Delad redovisning kommun/region (65%/35%): skuld justerad med faktor 0,65."
     ],
     "0330": [
-        "Knivsta: Kommun bildad 2003 — begränsad historik före 2010."
+        "Knivsta: Kommun bildad 2003, begränsad historik före 2010."
     ],
     "0331": [
-        "Heby: Bytte från Uppsala till Västmanlands län 2007 — tidsserie helt konsekvent från 2010."
+        "Heby: Bytte från Uppsala till Västmanlands län 2007, tidsserie helt konsekvent från 2010."
     ],
 }
 

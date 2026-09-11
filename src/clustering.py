@@ -71,7 +71,7 @@ def kmeans_classification(kri_df: pd.DataFrame, k: int = 3) -> pd.DataFrame:
         X = year_df.loc[valid_mask].values
 
         if len(X) < k:
-            logger.warning("Year %d: fewer than k=%d municipalities — skipping k-means", year, k)
+            logger.warning("Year %d: fewer than k=%d municipalities: skipping k-means", year, k)
             continue
 
         km = KMeans(n_clusters=k, random_state=42, n_init=10)
@@ -87,7 +87,7 @@ def kmeans_classification(kri_df: pd.DataFrame, k: int = 3) -> pd.DataFrame:
         result.loc[labels.index, "kmeans_risk_class"] = labels
 
         logger.debug(
-            "Year %d — Låg: %d  Medel: %d  Hög: %d",
+            "Year %d: Låg: %d  Medel: %d  Hög: %d",
             year,
             (labels == "Låg").sum(),
             (labels == "Medel").sum(),
@@ -301,7 +301,7 @@ def compute_distribution_stats(kri_df: pd.DataFrame, year: int) -> dict:
     }
 
     logger.info(
-        "Distribution stats year %d — n=%d  mean=%.3f  std=%.3f  skew=%.3f",
+        "Distribution stats year %d: n=%d  mean=%.3f  std=%.3f  skew=%.3f",
         year, stats["n"], stats["mean"], stats["std"], stats["skewness"],
     )
     return stats

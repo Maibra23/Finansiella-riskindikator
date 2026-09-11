@@ -116,7 +116,7 @@ def section(title: str) -> None:
 # ---------------------------------------------------------------------------
 # Load data
 # ---------------------------------------------------------------------------
-section("CHECK 1 — File Integrity")
+section("CHECK 1, File Integrity")
 
 try:
     df = pd.read_parquet(PARQUET_PATH)
@@ -125,7 +125,7 @@ try:
            f"Path: {PARQUET_PATH}")
 except Exception as exc:
     record(1, "Parquet loads without error", FAIL, str(exc))
-    print("\nCannot continue — parquet failed to load.")
+    print("\nCannot continue, parquet failed to load.")
     sys.exit(1)
 
 # Columns
@@ -147,13 +147,13 @@ record(1, f"Row count == {EXPECTED_ROWS} (290 muni × 15 years)",
        f"Actual rows: {df.shape[0]}  |  Expected: {EXPECTED_ROWS}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 2 — Completeness (zero NaN)")
+section("CHECK 2, Completeness (zero NaN)")
 # ---------------------------------------------------------------------------
 
 any_nan_fail = False
 for col in EXPECTED_COLUMNS:
     if col not in df.columns:
-        record(2, f"NaN check: {col}", FAIL, "Column not present — skipped")
+        record(2, f"NaN check: {col}", FAIL, "Column not present, skipped")
         continue
     n_nan = int(df[col].isna().sum())
     pct   = n_nan / len(df) * 100
@@ -167,7 +167,7 @@ for col in EXPECTED_COLUMNS:
                f"{n_nan} missing ({pct:.2f}%)\nSample affected rows:\n{bad.to_string(index=False)}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 3 — Municipality Coverage (290 codes from config)")
+section("CHECK 3, Municipality Coverage (290 codes from config)")
 # ---------------------------------------------------------------------------
 
 actual_codes  = set(df["municipality_code"].unique())
@@ -175,7 +175,7 @@ config_codes  = set(MUNICIPALITIES.keys())
 
 if not CONFIG_LOADED:
     record(3, "Config MUNICIPALITIES imported", WARN,
-           "src.config not importable — skipping coverage diff")
+           "src.config not importable, skipping coverage diff")
 else:
     record(3, "Config MUNICIPALITIES imported", PASS,
            f"{len(config_codes)} codes in config")
@@ -201,14 +201,14 @@ record(3, f"Unique municipality count == {EXPECTED_N_MUNICIPALITIES}",
        f"Actual unique codes: {n_actual}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 4 — Year Coverage (2010–2024, exactly 15 years)")
+section("CHECK 4: Year Coverage (2010-2024, exactly 15 years)")
 # ---------------------------------------------------------------------------
 
 actual_years = sorted(df["year"].unique().tolist())
 missing_years = [y for y in EXPECTED_YEARS if y not in actual_years]
 extra_years   = [y for y in actual_years if y not in EXPECTED_YEARS]
 
-record(4, "All 15 years present (2010–2024)",
+record(4, "All 15 years present (2010-2024)",
        PASS if not missing_years else FAIL,
        f"Actual years: {actual_years}"
        + (f"\nMissing: {missing_years}" if missing_years else ""))
@@ -224,7 +224,7 @@ record(4, f"Year count == {EXPECTED_N_YEARS}",
        f"Unique years: {len(actual_years)}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 5 — Value Range Checks")
+section("CHECK 5, Value Range Checks")
 # ---------------------------------------------------------------------------
 
 for col, (lo, hi, unit) in VALUE_RANGES.items():
@@ -236,7 +236,7 @@ for col, (lo, hi, unit) in VALUE_RANGES.items():
     n_high = int((series > hi).sum())
     total_out = n_low + n_high
 
-    summary = (f"Range [{lo:,} – {hi:,}] {unit}  |  "
+    summary = (f"Range [{lo:,}: {hi:,}] {unit}  |  "
                f"Data min={series.min():.4g}  max={series.max():.4g}  "
                f"mean={series.mean():.4g}  median={series.median():.4g}")
 
@@ -256,11 +256,11 @@ for col, (lo, hi, unit) in VALUE_RANGES.items():
                f"Worst outliers (up to 15):\n{outliers.to_string(index=False)}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 6 — Cross-Variable Consistency")
+section("CHECK 6, Cross-Variable Consistency")
 # ---------------------------------------------------------------------------
 
 # Flag municipalities where BOTH debt_per_capita AND tax_base_relative are
-# simultaneously in the top-decile (nationally, per year) — unusual but not
+# simultaneously in the top-decile (nationally, per year), unusual but not
 # impossible.  We look for year-level decile overlap and flag if > 5 % of
 # municipality-year pairs show this.
 if all(c in df.columns for c in ["debt_per_capita", "tax_base_relative"]):
@@ -281,7 +281,7 @@ if all(c in df.columns for c in ["debt_per_capita", "tax_base_relative"]):
     df.drop(columns=["_debt_pct", "_tax_pct"], inplace=True)
 else:
     record(6, "High-debt + high-tax-base co-occurrence", WARN,
-           "Required columns missing — skipped")
+           "Required columns missing, skipped")
 
 # Flag impossibly negative dependency_ratio or unemployment
 if "dependency_ratio" in df.columns:
@@ -297,7 +297,7 @@ if "unemployment" in df.columns:
            f"Negative count: {neg_u}")
 
 # Flag municipalities with unemployment > 10% AND dependency_ratio < 0.5
-# (extremely unusual — very high jobless but almost no dependents)
+# (extremely unusual, very high jobless but almost no dependents)
 if all(c in df.columns for c in ["unemployment", "dependency_ratio"]):
     paradox = df[(df["unemployment"] > 10) & (df["dependency_ratio"] < 0.5)]
     record(6, "High-unemployment + low-dependency paradox",
@@ -307,7 +307,7 @@ if all(c in df.columns for c in ["unemployment", "dependency_ratio"]):
               if not paradox.empty else ""))
 
 # ---------------------------------------------------------------------------
-section("CHECK 7 — Temporal Consistency (no > 3 SD single-year jumps)")
+section("CHECK 7, Temporal Consistency (no > 3 SD single-year jumps)")
 # ---------------------------------------------------------------------------
 
 jump_issues: dict[str, list] = {v: [] for v in TEMPORAL_VARS}
@@ -341,7 +341,7 @@ for col in TEMPORAL_VARS:
     tmp.drop(columns=["_diff"], inplace=True)
 
 # ---------------------------------------------------------------------------
-section("CHECK 8 — Known Benchmarks (spot checks vs SCB/AF published data)")
+section("CHECK 8, Known Benchmarks (spot checks vs SCB/AF published data)")
 # ---------------------------------------------------------------------------
 
 benchmarks = [
@@ -366,7 +366,7 @@ for label, code, year, col, lo, hi in benchmarks:
     ok  = lo <= val <= hi
     record(8, label,
            PASS if ok else WARN,
-           f"Value = {val:,.4g}  |  Expected range [{lo:,} – {hi:,}]")
+           f"Value = {val:,.4g}  |  Expected range [{lo:,}: {hi:,}]")
 
 # National mean unemployment 2023
 if "unemployment" in df.columns:
@@ -374,7 +374,7 @@ if "unemployment" in df.columns:
     ok = 2.5 <= nat_u_2023 <= 3.5
     record(8, "National mean unemployment 2023",
            PASS if ok else WARN,
-           f"Computed mean = {nat_u_2023:.3f}%  |  Expected 2.5–3.5%")
+           f"Computed mean = {nat_u_2023:.3f}%  |  Expected 2.5-3.5%")
 
 # National mean dependency_ratio (all years)
 if "dependency_ratio" in df.columns:
@@ -382,10 +382,10 @@ if "dependency_ratio" in df.columns:
     ok = 0.75 <= nat_dr <= 0.90
     record(8, "National mean dependency_ratio (all years)",
            PASS if ok else WARN,
-           f"Computed mean = {nat_dr:.4f}  |  Expected 0.75–0.90")
+           f"Computed mean = {nat_dr:.4f}  |  Expected 0.75-0.90")
 
 # ---------------------------------------------------------------------------
-section("CHECK 9 — Duplicate (municipality_code, year) Pairs")
+section("CHECK 9: Duplicate (municipality_code, year) Pairs")
 # ---------------------------------------------------------------------------
 
 dup_count = int(df.duplicated(subset=["municipality_code", "year"]).sum())
@@ -398,7 +398,7 @@ else:
            f"{dups[['municipality_code','year']].head(20).to_string(index=False)}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 10 — Data Types")
+section("CHECK 10, Data Types")
 # ---------------------------------------------------------------------------
 
 def _is_integer_dtype(dtype) -> bool:
@@ -434,7 +434,7 @@ for col in NUMERIC_COLS:
            f"Actual dtype: {dt}")
 
 # ---------------------------------------------------------------------------
-section("CHECK 11 — Cache File Existence")
+section("CHECK 11, Cache File Existence")
 # ---------------------------------------------------------------------------
 
 for name, path in CACHE_FILES.items():
@@ -488,10 +488,10 @@ if warn_items:
     print()
 
 if counts["FAIL"] == 0 and counts["WARN"] == 0:
-    print("  *** FULL AUDIT PASSED — data is clean and ready ***")
+    print("  *** FULL AUDIT PASSED, data is clean and ready ***")
 elif counts["FAIL"] == 0:
-    print("  *** NO FAILURES — pipeline data is usable; review warnings above ***")
+    print("  *** NO FAILURES: pipeline data is usable; review warnings above ***")
 else:
-    print("  *** AUDIT FAILED — see FAILURE items above for required fixes ***")
+    print("  *** AUDIT FAILED, see FAILURE items above for required fixes ***")
 
 print()

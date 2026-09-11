@@ -1,5 +1,5 @@
 """
-Page: Källor — data sources and methodology overview.
+Page: Källor, data sources and methodology overview.
 
 Displays the full data source table from methodology section 2.1 plus
 API and coverage details. All user-facing text is in Swedish.
@@ -56,7 +56,7 @@ def _modal_agreement(year: int) -> int | None:
 
 sens_df = _load_sensitivity()
 
-# Sidebar — mirrors app/main.py
+# Sidebar, mirrors app/main.py
 pages_dir = PROJECT_ROOT / "app" / "pages"
 st.sidebar.markdown(
     """
@@ -132,7 +132,7 @@ sources_df = pd.DataFrame(
             "Variabel": "Arbetslöshet",
             "Kolumnnamn": "unemployment",
             "Vikt": "25 %",
-            "Källsystem": "Kolada API → Arbetsförmedlingen",
+            "Källsystem": "Kolada API (Arbetsförmedlingen)",
             "Serie": "KPI N03937",
             "Täckning": "290 kommuner × 15 år",
         },
@@ -265,13 +265,13 @@ st.markdown(
     f"""
 KRI viktar fem z-poäng med **0,25 skuld · 0,25 arbetslöshet · 0,20 försörjningskvot ·
 0,15 befolkningstillväxt · 0,15 skattekraft**. Vikterna är motiverade utifrån offentlig
-finansieringsteori - de är alltså *valda*, inte skattade ur data. Det är en rimlig
+finansieringsteori. De är alltså *valda*, inte skattade ur data. Det är en rimlig
 invändning mot varje sammansatt index, och den besvaras här med en mätning i stället
 för ett argument.
 
 **Metod.** Varje vikt tillåts variera likformigt med
 ±{_delta_sv} kring sitt nominella värde. Vektorn normeras så att summan
-förblir 1 - höjer man skuldvikten måste något annat sänkas, vilket är precis den
+förblir 1. Höjer man skuldvikten måste något annat sänkas, vilket är precis den
 avvägning invändningen handlar om. Indexet räknas om {int(SENSITIVITY['n_draws'])}
 gånger och kvartilgränserna beräknas om *inom varje omräkning*, så att resultatet
 motsvarar vad klassificeringen hade gett om de vikterna varit de verkliga.

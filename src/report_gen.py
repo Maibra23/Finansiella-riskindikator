@@ -375,7 +375,7 @@ def _risk_table(
 
     *uncertainty* maps rank to a pre-formatted cell ("4-13" or "gränsfall").
     Omitted when the weight-sensitivity layer is not built, so the exported
-    report carries exactly the same caveats the screen does — no more, no less.
+    report carries exactly the same caveats the screen does: no more, no less.
     """
     show_unc = bool(uncertainty)
     header = [
@@ -396,7 +396,7 @@ def _risk_table(
             Paragraph(risk, styles_dict["table_cell"]),
         ]
         if show_unc:
-            row.append(Paragraph((uncertainty or {}).get(rank, "–"), styles_dict["table_cell"]))
+            row.append(Paragraph((uncertainty or {}).get(rank, "-"), styles_dict["table_cell"]))
         data.append(row)
 
     col_widths = (
@@ -591,7 +591,7 @@ def generate_report(
     story.append(NextPageTemplate("content"))
     story.append(PageBreak())
 
-    # ── PAGE 2: Executive summary ──────────────────────────────────────────
+    # ── PAGE 2: Executive summary ------------------------------------------
     story.append(Paragraph("Sammanfattning", S["h1"]))
     story.append(HRFlowable(width=CONTENT_W, thickness=1.5, color=C_GOLD, spaceAfter=10))
 
@@ -676,7 +676,7 @@ def generate_report(
 
     story.append(PageBreak())
 
-    # ── PAGE 3: Methodology ────────────────────────────────────────────────
+    # ── PAGE 3: Methodology ------------------------------------------------
     story.append(Paragraph("Metodik", S["h1"]))
     story.append(HRFlowable(width=CONTENT_W, thickness=1.5, color=C_GOLD, spaceAfter=10))
 
@@ -758,7 +758,7 @@ def generate_report(
         story.append(Paragraph(
             f"För {report_year} är {_robust_n} av {len(_my)} kommuner robusta. Framför allt "
             f"gäller att den publicerade riskklassen också är den vanligaste klassen över "
-            f"samtliga omräkningar för {_modal_ok} av {len(_my)} kommuner — "
+            f"samtliga omräkningar för {_modal_ok} av {len(_my)} kommuner, "
             f"känslighetsanalysen bekräftar indexet snarare än ifrågasätter det. "
             f"Analysen avser osäkerhet i viktningen, inte i underliggande data eller i "
             f"valet av indikatorer.",
@@ -794,7 +794,7 @@ def generate_report(
 
     story.append(PageBreak())
 
-    # ── PAGE 4: Results ────────────────────────────────────────────────────
+    # ── PAGE 4: Results ----------------------------------------------------
     story.append(Paragraph(f"Resultat {report_year}", S["h1"]))
     story.append(HRFlowable(width=CONTENT_W, thickness=1.5, color=C_GOLD, spaceAfter=10))
 
@@ -851,7 +851,7 @@ def generate_report(
 
     story.append(PageBreak())
 
-    # ── PAGE 5: Conclusions ────────────────────────────────────────────────
+    # ── PAGE 5: Conclusions ------------------------------------------------
     story.append(Paragraph("Slutsatser och begränsningar", S["h1"]))
     story.append(HRFlowable(width=CONTENT_W, thickness=1.5, color=C_GOLD, spaceAfter=10))
 

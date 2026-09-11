@@ -8,7 +8,7 @@ Writes data/processed/kri_sensitivity.parquet.  That file is committed to the
 repository for the same reason kri_results.parquet is: Streamlit Cloud cannot
 run the pipeline at request time.
 
-The output is deterministic — the seed lives in config.SENSITIVITY — so re-running
+The output is deterministic, the seed lives in config.SENSITIVITY, so re-running
 this script on unchanged input rewrites an identical file.
 """
 
@@ -69,7 +69,7 @@ def main(output_path: Path = OUTPUT_PATH) -> int:
     if s["modal_disagreements"] > 5:
         print(f"\n  WARNING: the most frequent class differs from the published class for "
               f"{s['modal_disagreements']} municipalities in {latest}.")
-        print("           That is a finding about the index, not about this script — "
+        print("           That is a finding about the index, not about this script, "
               "investigate before publishing.")
     else:
         print(f"\n  {latest}: the published risk class is also the most frequent class for "

@@ -114,7 +114,7 @@ class TestKnownMunicipalities:
         return row.iloc[0]
 
     def test_danderyd_low_risk(self, kri_df):
-        """Danderyd (0162) — wealthy suburb, should be low risk."""
+        """Danderyd (0162): wealthy suburb, should be low risk."""
         row = self._latest(kri_df, "0162")
         median = kri_df[kri_df["year"] == self.LATEST_YEAR]["kri_score"].median()
         assert row["kri_score"] < median, (
@@ -122,7 +122,7 @@ class TestKnownMunicipalities:
         )
 
     def test_dorotea_high_risk(self, kri_df):
-        """Dorotea (2425) — remote inland municipality, should be high risk."""
+        """Dorotea (2425): remote inland municipality, should be high risk."""
         row = self._latest(kri_df, "2425")
         p75 = kri_df[kri_df["year"] == self.LATEST_YEAR]["kri_score"].quantile(0.75)
         assert row["kri_score"] > p75, (
@@ -130,7 +130,7 @@ class TestKnownMunicipalities:
         )
 
     def test_stockholm_low_medium_risk(self, kri_df):
-        """Stockholm (0180) — large city with strong tax base, medium or low risk."""
+        """Stockholm (0180): large city with strong tax base, medium or low risk."""
         row = self._latest(kri_df, "0180")
         assert row["risk_class"] in ("Låg", "Medel"), (
             f"Stockholm risk_class='{row['risk_class']}' (expected Låg or Medel)"
@@ -170,7 +170,7 @@ class TestTemporalStability:
             merged = df_from.merge(df_to, on="municipality_code", how="inner").dropna()
             corr = merged["score_from"].corr(merged["score_to"])
             assert corr > self.MIN_CORRELATION, (
-                f"Correlation {y_from}→{y_to}: {corr:.3f} < {self.MIN_CORRELATION}"
+                f"Correlation {y_from}->{y_to}: {corr:.3f} < {self.MIN_CORRELATION}"
             )
 
 
@@ -315,7 +315,7 @@ class TestReportClaims:
     """Guards factual claims in the generated PDF against the data.
 
     Two claims were wrong before this was added: that the share of high-risk
-    municipalities rose during the pandemic (impossible — the classes are
+    municipalities rose during the pandemic (impossible, the classes are
     quartiles, so the share is fixed at 25% by construction), and that debt and
     unemployment explain 50% of KRI variance (that is the sum of their weights;
     the actual variance share is 38%).

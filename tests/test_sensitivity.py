@@ -4,7 +4,7 @@ The layer exists to answer "your weights are subjective" with a measurement
 rather than an argument.  Two properties make it trustworthy, and both are
 asserted here:
 
-  1. It is *additive*.  It never recomputes kri_score, risk_class or rank — it
+  1. It is *additive*.  It never recomputes kri_score, risk_class or rank, it
      only reports how stable those already-published values are.
   2. It is *deterministic*.  A band that moves between pipeline runs is worse
      than no band at all, because a reader who re-runs and sees different
@@ -59,7 +59,7 @@ class TestSampling:
         assert sample_weights(cfg).shape == (37, 5)
 
     def test_draws_are_centred_on_the_nominal_weights(self) -> None:
-        """Perturbation must be symmetric — it may not bias the index."""
+        """Perturbation must be symmetric, it may not bias the index."""
         W = sample_weights(SensitivityConfig(n_draws=20000))
         assert np.allclose(W.mean(axis=0), SensitivityConfig().nominal, atol=0.005)
 
@@ -174,7 +174,7 @@ class TestSubstance:
 
     def test_most_municipalities_are_robust(self, sens: pd.DataFrame, latest_year: int) -> None:
         share = sens.loc[sens["year"] == latest_year, "is_robust"].mean()
-        assert 0.6 < share < 0.98, f"robust share {share:.2f} — threshold is miscalibrated"
+        assert 0.6 < share < 0.98, f"robust share {share:.2f}, threshold is miscalibrated"
 
     def test_it_actually_discriminates(self, sens: pd.DataFrame, latest_year: int) -> None:
         """A band that flags nobody, or everybody, is decoration."""
@@ -226,7 +226,7 @@ class TestReportIntegration:
         styles = _styles()
         rows = [(1, "Högsby", 1.17, "Hög"), (2, "Filipstad", 1.09, "Hög")]
         assert len(_risk_table(rows, styles)._argW) == 4
-        assert len(_risk_table(rows, styles, uncertainty={1: "1–2", 2: "2–4"})._argW) == 5
+        assert len(_risk_table(rows, styles, uncertainty={1: "1-2", 2: "2-4"})._argW) == 5
 
     def test_uncertainty_map_covers_every_rank(self, kri_df: pd.DataFrame, latest_year: int) -> None:
         from src.report_gen import _load_sensitivity, _uncertainty_by_rank
@@ -283,7 +283,7 @@ class TestPagesDegradeWithoutTheLayer:
         )
 
     def test_table_html_omits_the_column_without_data(self) -> None:
-        """The header must disappear too — not render above empty cells."""
+        """The header must disappear too, not render above empty cells."""
         src = (
             Path(__file__).resolve().parent.parent / "app" / "pages" / "riksoversikt.py"
         ).read_text(encoding="utf-8")

@@ -1,5 +1,5 @@
 """
-Page 3: Kommunanalys — deep dive for a single municipality.
+Page 3: Kommunanalys, deep dive for a single municipality.
 
 Charts use streamlit-echarts (Apache ECharts). All user-facing text is in Swedish.
 """
@@ -67,7 +67,7 @@ st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Laddar data…")
+@st.cache_data(show_spinner="Laddar data...")
 def _load() -> pd.DataFrame:
     p = PROJECT_ROOT / "data" / "processed" / "kri_results.parquet"
     df = pd.read_parquet(p)
@@ -168,7 +168,7 @@ if sens_df is not None:
     ]
     sens_row = _m.iloc[0] if not _m.empty else None
 
-# One appended segment rather than a seventh KPI card — the row is already at six
+# One appended segment rather than a seventh KPI card, the row is already at six
 # and render_kpi_card has no free slot.
 _uncertainty_chip = ""
 if sens_row is not None:
@@ -496,11 +496,11 @@ with st.expander("Dataexport och datakvalitet", expanded=False):
         )
     with btn2:
         if st.button(
-            "📄 Ladda ner rapport (PDF)",
+            "Ladda ner rapport (PDF)",
             key="ka_pdf_btn",
             help=_HELP_PDF,
         ):
-            with st.spinner("Genererar PDF-rapport…"):
+            with st.spinner("Genererar PDF-rapport..."):
                 try:
                     from src.report_gen import generate_report
 

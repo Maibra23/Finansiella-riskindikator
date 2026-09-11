@@ -71,3 +71,10 @@ htmlcov/
 
 # Report output (regenerated)
 report/*.pdf
+
+# Editor and assistant workspace config (local only)
+.cursor/
+.claude/
+
+# Generated CSV mirror of the parquet (rebuilt by scripts/run_pipeline.py)
+data/processed/*.csv

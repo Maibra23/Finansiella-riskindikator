@@ -1,7 +1,7 @@
 """
 Sweden municipality choropleth map using Folium + GeoJSON.
 
-Each kommunpolygon is filled by KRI colour using the same diverging green→yellow→red
+Each kommunpolygon is filled by KRI colour using the same diverging green->yellow->red
 scale as the rest of the dashboard.  Requires folium and streamlit-folium.
 """
 
@@ -51,7 +51,7 @@ def _build_colormap(scores: pd.Series) -> cm.LinearColormap:
     # Strictly increasing stops, one per colour in DIVERGING_SCALE (6 colours).
     stops = [-extent, q25, 0.0, q75, (q75 + extent) / 2, extent]
     if any(b <= a for a, b in zip(stops, stops[1:])):
-        # Degenerate spread (e.g. a single municipality selected) — fall back to
+        # Degenerate spread (e.g. a single municipality selected), fall back to
         # an evenly spaced symmetric domain rather than crashing branca.
         step = 2 * extent / (len(DIVERGING_SCALE) - 1)
         stops = [-extent + i * step for i in range(len(DIVERGING_SCALE))]

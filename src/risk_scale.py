@@ -3,7 +3,7 @@
 Why this module exists
 ----------------------
 The composite KRI is a *weighted mean* of five z-scores.  Averaging imperfectly
-correlated standard-normal variables shrinks the spread well below 1σ — in
+correlated standard-normal variables shrinks the spread well below 1σ, in
 practice ≈0.58 in 2010 falling to ≈0.43 in 2024, with the full range never
 leaving ±2.0.  The dashboard originally assumed the composite was itself
 standard normal and hardcoded the standard-normal quartiles (±0.6745) as risk
@@ -12,7 +12,7 @@ boundaries, with axes spanning ±2.5.
 That produced two visible defects:
 
 * charts painted only ~17 municipalities red while the tables and KPI cards
-  labelled 73 as *Hög risk* — 111 of 290 municipalities (38 %) were shown in a
+  labelled 73 as *Hög risk*, 111 of 290 municipalities (38 %) were shown in a
   different zone by the charts than by the rest of the dashboard;
 * every municipality was squeezed into the middle half of each axis.
 
@@ -93,7 +93,7 @@ class RiskScale:
 
     @classmethod
     def for_year(cls, kri_df: pd.DataFrame, year: int) -> RiskScale:
-        """Scale for a single analysis year — matches that year's risk classes."""
+        """Scale for a single analysis year, matches that year's risk classes."""
         return cls.from_scores(kri_df.loc[kri_df["year"] == year, "kri_score"])
 
     @classmethod

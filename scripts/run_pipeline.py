@@ -213,7 +213,7 @@ def main(use_cache: bool = True):
         print(f"  Years: {sorted(kri_results['year'].unique().tolist())}")
     except Exception as exc:
         print(f"\n  ERROR building KRI index: {exc}")
-        print("  Base data saved — run: python -c \"from src.index_builder import KRIBuilder; KRIBuilder().build()\"")
+        print("  Base data saved: run: python -c \"from src.index_builder import KRIBuilder; KRIBuilder().build()\"")
 
     # =========================================================================
     # FINAL SUMMARY

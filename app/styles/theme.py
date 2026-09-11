@@ -26,7 +26,7 @@ def apply_streamlit_theme() -> None:
     try:
         st.set_page_config(
             page_title="KRI Kontrollpanel",
-            page_icon="📊",
+            page_icon=":bar_chart:",
             layout="wide",
             initial_sidebar_state="expanded",
             menu_items={
@@ -36,7 +36,7 @@ def apply_streamlit_theme() -> None:
             },
         )
     except StreamlitAPIException:
-        # Already set on first page in this session (e.g. home → multipage navigation).
+        # Already set on first page in this session (e.g. home -> multipage navigation).
         pass
 
     p = COLORS["primary"]
@@ -93,7 +93,7 @@ def apply_streamlit_theme() -> None:
         font-family: 'Source Sans Pro', -apple-system, sans-serif !important;
     }}
 
-    /* Main content only — never force dark body text on [class*="css"] or it paints the sidebar unreadable */
+    /* Main content only, never force dark body text on [class*="css"] or it paints the sidebar unreadable */
     [data-testid="stMain"],
     [data-testid="stMain"] .block-container {{
         color: {text_pri};
@@ -193,7 +193,7 @@ def apply_streamlit_theme() -> None:
         border-left: 2px solid {accent} !important;
     }}
 
-    /* Sidlänkar: Streamlit sätter mörk text på mörk bakgrund — tvinga ljus text + spann. */
+    /* Sidlänkar: Streamlit sätter mörk text på mörk bakgrund, tvinga ljus text + spann. */
     [data-testid="stSidebarContent"] a[href] {{
         text-decoration: none !important;
         color: rgba(255, 255, 255, 0.92) !important;
@@ -222,7 +222,7 @@ def apply_streamlit_theme() -> None:
         color: rgba(255, 255, 255, 0.72) !important;
     }}
 
-    /* Borttagen: bred .stApp > … > div {{ padding-top }} gav vertikal glidning mellan huvudyta och sidopanel */
+    /* Borttagen: bred .stApp > ... > div {{ padding-top }} gav vertikal glidning mellan huvudyta och sidopanel */
 
     [data-testid="stVerticalBlock"] > div {{
         gap: 0.5rem;
@@ -551,8 +551,8 @@ def apply_streamlit_theme() -> None:
         color: {text_sec};
     }}
 
-    /* ── Sidopanel: år-chips + riskklass-piller ─────────────── */
-    /* Bred regel — träffar alla knappar i sidopanelen oberoende av stPills-hierarki.
+    /* ── Sidopanel: år-chips + riskklass-piller --------------- */
+    /* Bred regel, träffar alla knappar i sidopanelen oberoende av stPills-hierarki.
        button * fångar text i p/span/div oavsett vad Streamlit renderar inuti knappen. */
     [data-testid="stSidebar"] button {{
         background-color: rgba(255,255,255,0.10) !important;
@@ -580,7 +580,7 @@ def apply_streamlit_theme() -> None:
     [data-testid="stSidebar"] button:hover * {{
         color: #FFFFFF !important;
     }}
-    /* Vald chip — guld bakgrund, mörk marin text */
+    /* Vald chip: guld bakgrund, mörk marin text */
     [data-testid="stSidebar"] button[aria-pressed="true"] {{
         background-color: {accent} !important;
         border-color: {accent} !important;
@@ -591,7 +591,7 @@ def apply_streamlit_theme() -> None:
         color: {p} !important;
     }}
 
-    /* ── Riskklass: punkt-legend ─────────────────────────────── */
+    /* ── Riskklass: punkt-legend ------------------------------- */
     .sidebar-control {{
         margin-top: 24px;
         padding-top: 20px;
@@ -615,7 +615,7 @@ def apply_streamlit_theme() -> None:
         flex-shrink: 0;
     }}
 
-    /* ── Landing page (.lp-*) — scoped to home; tokens from COLORS ───────── */
+    /* ── Landing page (.lp-*): scoped to home; tokens from COLORS --------- */
     .lp-hero {{
         background: linear-gradient(145deg, {p} 0%, {COLORS["primary_light"]} 55%, #152a52 100%);
         border-radius: 4px;
@@ -642,7 +642,7 @@ def apply_streamlit_theme() -> None:
         padding-left: var(--kri-brand-bar-offset);
         box-sizing: border-box;
     }}
-    /* Main sets color on stMain — hero must override for h1 + text */
+    /* Main sets color on stMain, hero must override for h1 + text */
     [data-testid="stMain"] .lp-hero h1.lp-headline,
     .lp-hero h1.lp-headline,
     .lp-hero .lp-headline {{
@@ -1150,7 +1150,7 @@ def render_page_header(eyebrow: str, title: str, subtitle: str, year: str) -> st
 
 
 # ---------------------------------------------------------------------------
-# Landing page (home) — HTML fragments; Swedish copy from callers
+# Landing page (home): HTML fragments; Swedish copy from callers
 # ---------------------------------------------------------------------------
 
 _NAV_ICONS: dict[str, str] = {
@@ -1231,7 +1231,7 @@ def render_landing_steps(
     steps: list[tuple[str, str, str, str]],
 ) -> str:
     """
-    Three numbered steps with arrow connectors (step → step).
+    Three numbered steps with arrow connectors (step -> step).
     Each tuple: (number_label, title, body, icon_key data|normalize|classify).
     """
     icon_extra = {

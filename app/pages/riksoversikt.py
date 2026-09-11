@@ -1,5 +1,5 @@
 """
-Page 1: Riksöversikt — national overview of KRI scores for all 290 municipalities.
+Page 1: Riksöversikt, national overview of KRI scores for all 290 municipalities.
 
 Charts use streamlit-echarts (Apache ECharts). All user-facing text is in Swedish.
 """
@@ -29,7 +29,7 @@ from app.styles.theme import (
 from src.config import MUNICIPALITIES, SENSITIVITY, SWEDISH_LABELS
 from src.risk_scale import RiskScale
 
-# KPI hover texts (Riksöversikt row) — kort förklaring av mått och jämförelse
+# KPI hover texts (Riksöversikt row), kort förklaring av mått och jämförelse
 _KPI_TIP_MEDIAN_KRI = (
     "Median KRI är mittenvärdet i urvalet: hälften av kommunerna har lägre KRI och hälften högre. "
     "Till skillnad från medelvärdet påverkas medianen mindre av några få extrema kommuner. "
@@ -86,7 +86,7 @@ st.sidebar.markdown("<br/>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 
 
-@st.cache_data(show_spinner="Laddar data…")
+@st.cache_data(show_spinner="Laddar data...")
 def _load() -> pd.DataFrame:
     p = PROJECT_ROOT / "data" / "processed" / "kri_results.parquet"
     df = pd.read_parquet(p)
@@ -99,7 +99,7 @@ def _load_sensitivity() -> pd.DataFrame | None:
     """Weight-sensitivity band, or None when the optional layer is not built.
 
     Every consumer below is guarded on this: without the file the page renders
-    exactly as it did before the layer existed — no placeholder, no warning.
+    exactly as it did before the layer existed: no placeholder, no warning.
     """
     p = PROJECT_ROOT / "data" / "processed" / "kri_sensitivity.parquet"
     if not p.exists():
@@ -122,7 +122,7 @@ sens_df = _load_sensitivity()
 available_years = sorted(kri_df["year"].unique().tolist())
 default_year = st.session_state.get("selected_year", max(available_years))
 
-# ── Year chips ──────────────────────────────────────────────────
+# ── Year chips --------------------------------------------------
 st.sidebar.markdown(
     f'<div class="sidebar-control"><div class="control-label">{SWEDISH_LABELS["select_year"]}</div></div>',
     unsafe_allow_html=True,
@@ -136,7 +136,7 @@ _year_raw = st.sidebar.pills(
 )
 selected_year: int = int(_year_raw) if _year_raw is not None else default_year
 
-# ── Risk filter: colored dot legend + multi-select pills ────────
+# ── Risk filter: colored dot legend + multi-select pills --------
 st.sidebar.markdown(
     f"""
     <div class="sidebar-control">
@@ -278,7 +278,7 @@ def _delta_pop_mean() -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Section A — Page header
+# Section A, Page header
 # ---------------------------------------------------------------------------
 
 st.markdown(
@@ -292,7 +292,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Section B — KPI row
+# Section B, KPI row
 # ---------------------------------------------------------------------------
 
 median_kri_val = float(filtered_df["kri_score"].median()) if len(filtered_df) else 0.0
@@ -363,7 +363,7 @@ with kpi_col4:
 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Section C — Map + distribution
+# Section C, Map + distribution
 # ---------------------------------------------------------------------------
 
 scores = filtered_df["kri_score"].astype(float).tolist()
@@ -439,14 +439,14 @@ with dist_col:
             "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk "
             f"(KRI under {_fmt_decimal(_risk_scale.low, 2)}), gula = medel, röda = hög "
             f"(KRI över +{_fmt_decimal(_risk_scale.high, 2)}). Brytpunkterna är årets 25:e "
-            "och 75:e percentil - samma gränser som riskklasserna i tabellerna. "
+            "och 75:e percentil, samma gränser som riskklasserna i tabellerna. "
             "Den streckade linjen visar medianen. "
             "**Rådata (skuld)** visar skuld per capita i kronor *innan* z-poängsnormalisering, "
             "vilket illustrerar hur indexet omvandlar absoluta värden till jämförbara poäng."
         )
 
 # ---------------------------------------------------------------------------
-# Section D — Tables
+# Section D, Tables
 # ---------------------------------------------------------------------------
 
 top15_high = filtered_df.nsmallest(15, "rank").sort_values("rank")
@@ -577,7 +577,7 @@ with tbl2:
         st.markdown(_table_html(top15_low), unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Section E — Footer
+# Section E, Footer
 # ---------------------------------------------------------------------------
 
 st.markdown(

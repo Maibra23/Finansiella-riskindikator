@@ -11,7 +11,6 @@
 **Dashboard language:** Swedish only. Every piece of text a user sees must be in Swedish. Zero English in the UI.
 **Code language:** English (variable names, function names, comments, docstrings, file names)
 **Platform:** Streamlit (web application)
-**Tools:** Cursor IDE + Claude Code
 
 ---
 
@@ -51,8 +50,6 @@ Build an interactive dashboard that ranks all 290 Swedish municipalities by a co
 ### Folder Structure
 ```
 kommun-risk-dashboard/
-├── .cursor/
-│   └── rules
 ├── data/
 │   ├── raw/
 │   ├── processed/
