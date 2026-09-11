@@ -89,7 +89,14 @@ python scripts/run_pipeline.py
 This fetches all data, cleans it, and builds the KRI index in one step.
 The pipeline saves both `kri_base_data.parquet` and `kri_results.parquet`.
 
-5. Run the dashboard:
+5. Build the weight-sensitivity band:
+```bash
+python scripts/run_sensitivity.py
+```
+Optional but recommended — see [Weight sensitivity](#weight-sensitivity) below.
+The dashboard runs without it and simply omits the uncertainty columns.
+
+6. Run the dashboard:
 ```bash
 streamlit run app/main.py
 ```
@@ -131,9 +138,13 @@ kommun-risk-dashboard/
 │   ├── METHODOLOGY.md         # Full methodology documentation
 │   └── tasks.md               # 5-day development task plan
 ├── tests/
-│   └── test_index.py          # 28 unit tests (weights, z-scores, known municipalities)
+│   ├── test_index.py          # Weights, z-scores, known municipalities
+│   ├── test_map.py            # Choropleth basemap and colour scale
+│   ├── test_risk_scale.py     # Risk-zone calibration shared by every chart
+│   └── test_sensitivity.py    # Weight-sensitivity layer (97 tests in total)
 ├── scripts/
 │   ├── run_pipeline.py        # Full ETL: fetch → clean → build → save
+│   ├── run_sensitivity.py     # Weight-sensitivity band → kri_sensitivity.parquet
 │   ├── verify_pipeline.py     # Pipeline output validation
 │   ├── verify_swedish_ui.py   # Swedish language compliance check
 │   ├── full_data_audit.py     # Comprehensive data quality audit
@@ -185,6 +196,28 @@ KRI(i,t) = Σ wk × zk(i,t)
 | **Medel** | 25th–75th percentile | 🟡 `#D4A03C` |
 | **Hög** | KRI > 75th percentile | 🔴 `#B94A48` |
 
+### Weight sensitivity
+
+The weights are argued from public-finance theory, not estimated. Rather than claim
+they are objective, the dashboard measures how much the ranking depends on them:
+each weight is varied by ±0.05, the index is recomputed 1000 times, and every
+municipality gets a rank interval plus a stability score.
+
+| 2024, n = 290 | |
+|---|---|
+| Robust (keeps its class in ≥90% of draws) | 241 |
+| Gränsfall (boundary-fragile) | 49 |
+| **Most frequent class differs from published class** | **1** |
+
+The published index is corroborated, not overturned. PCA weighting was tested and
+rejected — PC1 loads negatively on debt in all fifteen years, which would rank the
+most indebted municipalities as the safest. Full argument and the δ = 0.03 / 0.10
+robustness check in [docs/methodology.md §3.5](docs/methodology.md).
+
+The layer is additive: it never recomputes `kri_score`, `risk_class` or `rank`, and
+lives in its own artefact (`data/processed/kri_sensitivity.parquet`). Delete that
+file and the dashboard renders exactly as it did before.
+
 ### Visualization
 
 All charts use **Apache ECharts** via `streamlit-echarts`. Shared styling helpers in `app/styles/theme.py`:
@@ -223,8 +256,9 @@ All UI text is in Swedish. Code identifiers and comments are in English.
 
 ```bash
 pytest tests/ -v
-# 28 tests covering: weights, z-score properties, known municipalities,
-# classification distribution, temporal stability, clustering, peer analysis
+# 97 tests covering: weights, z-score properties, known municipalities,
+# classification distribution, temporal stability, clustering, peer analysis,
+# choropleth basemap and colour calibration, and the weight-sensitivity layer
 ```
 
 ---

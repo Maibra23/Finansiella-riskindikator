@@ -518,6 +518,18 @@ def apply_streamlit_theme() -> None:
     .risk-pill.hog {{ background: rgba(185,74,72,0.12); color: {high}; border: 1px solid rgba(185,74,72,0.3); }}
     .risk-pill.medel {{ background: rgba(212,160,60,0.12); color: #8B6914; border: 1px solid rgba(212,160,60,0.3); }}
     .risk-pill.lag {{ background: rgba(46,125,91,0.12); color: {low}; border: 1px solid rgba(46,125,91,0.3); }}
+    /* Gränsfall: markör för viktkänslighet, inte en fjärde riskklass. Medvetet
+       färglös: gult betyder redan "Medel" i panelen, så en gul markör på en
+       Hög-kommun skulle läsas som en nedgradering. Fylld ram = fastställd
+       klassning, streckad ram = klassningen är preliminär. */
+    .risk-pill.granfall {{
+        background: transparent;
+        color: {text_ter};
+        border: 1px dashed rgba(156,163,175,0.55);
+        text-transform: none;
+        letter-spacing: 0.2px;
+        font-weight: 500;
+    }}
 
     .footer-note {{
         margin-top: 28px;

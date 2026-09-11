@@ -26,7 +26,7 @@ from app.styles.theme import (
     render_kpi_card,
     render_page_header,
 )
-from src.config import MUNICIPALITIES, SWEDISH_LABELS
+from src.config import MUNICIPALITIES, SENSITIVITY, SWEDISH_LABELS
 from src.risk_scale import RiskScale
 
 # KPI hover texts (Riksöversikt row) — kort förklaring av mått och jämförelse
@@ -94,10 +94,30 @@ def _load() -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False)
+def _load_sensitivity() -> pd.DataFrame | None:
+    """Weight-sensitivity band, or None when the optional layer is not built.
+
+    Every consumer below is guarded on this: without the file the page renders
+    exactly as it did before the layer existed — no placeholder, no warning.
+    """
+    p = PROJECT_ROOT / "data" / "processed" / "kri_sensitivity.parquet"
+    if not p.exists():
+        return None
+    try:
+        df = pd.read_parquet(p)
+        df["year"] = df["year"].astype(int)
+        return df
+    except Exception:
+        return None
+
+
 if "kri_df" in st.session_state:
     kri_df: pd.DataFrame = st.session_state["kri_df"]
 else:
     kri_df = _load()
+
+sens_df = _load_sensitivity()
 
 available_years = sorted(kri_df["year"].unique().tolist())
 default_year = st.session_state.get("selected_year", max(available_years))
@@ -162,6 +182,14 @@ st.session_state["selected_risks"] = selected_risks
 st.session_state["kri_df"] = kri_df
 
 year_df = kri_df[kri_df["year"] == selected_year].copy()
+
+# Left join keeps every municipality even if the optional layer is absent.
+if sens_df is not None:
+    year_df = year_df.merge(
+        sens_df[sens_df["year"] == selected_year].drop(columns="year"),
+        on="municipality_code",
+        how="left",
+    )
 
 # Filter by selected risk classes; empty list = show all
 if selected_risks:
@@ -411,7 +439,7 @@ with dist_col:
             "än rikssnittet och positiva indikerar högre. Gröna staplar = låg risk "
             f"(KRI under {_fmt_decimal(_risk_scale.low, 2)}), gula = medel, röda = hög "
             f"(KRI över +{_fmt_decimal(_risk_scale.high, 2)}). Brytpunkterna är årets 25:e "
-            "och 75:e percentil — samma gränser som riskklasserna i tabellerna. "
+            "och 75:e percentil - samma gränser som riskklasserna i tabellerna. "
             "Den streckade linjen visar medianen. "
             "**Rådata (skuld)** visar skuld per capita i kronor *innan* z-poängsnormalisering, "
             "vilket illustrerar hur indexet omvandlar absoluta värden till jämförbara poäng."
@@ -429,7 +457,26 @@ def _risk_pill_class(rc: str) -> str:
     return {"Hög": "hog", "Medel": "medel", "Låg": "lag"}.get(rc, "medel")
 
 
+def _uncertainty_cell(row: pd.Series) -> str:
+    """Rank interval for a robust kommun, gränsfall marker for a fragile one.
+
+    One column, two mutually exclusive states. A kommun only ever needs one of
+    the two answers, and for the fragile ones the interval is too wide to be
+    worth reading anyway.
+    """
+    if pd.isna(row.get("is_robust")):
+        return "<td class='num'>-</td>"
+    if not bool(row["is_robust"]):
+        return (
+            f"<td class='num'>"
+            f"<span class='risk-pill granfall'>{SWEDISH_LABELS['boundary_case'].lower()}</span>"
+            f"</td>"
+        )
+    return f"<td class='num'>{int(row['rank_p05'])}-{int(row['rank_p95'])}</td>"
+
+
 def _table_html(df: pd.DataFrame) -> str:
+    show_uncertainty = "is_robust" in df.columns
     rows = []
     for _, row in df.iterrows():
         rc = str(row["risk_class"])
@@ -438,18 +485,36 @@ def _table_html(df: pd.DataFrame) -> str:
         rank = str(int(row["rank"])).zfill(2)
         code = str(row["municipality_code"]).zfill(4)
         name = MUNICIPALITIES.get(code, str(row.get("municipality_name", "")))
-        rows.append(
-            f"<tr><td class='rank-cell'>{rank}</td>"
+        cells = (
+            f"<td class='rank-cell'>{rank}</td>"
             f"<td class='kommun-name'>{name}</td>"
             f"<td class='num'>{kri}</td>"
-            f"<td><span class='risk-pill {pill}'>{rc}</span></td></tr>"
+            f"<td><span class='risk-pill {pill}'>{rc}</span></td>"
         )
+        if show_uncertainty:
+            cells += _uncertainty_cell(row)
+        rows.append(f"<tr>{cells}</tr>")
+
+    headers = "<th>Rang</th><th>Kommun</th><th class='num'>KRI Poäng</th><th>Riskklass</th>"
+    if show_uncertainty:
+        headers += f"<th class='num'>{SWEDISH_LABELS['uncertainty']}</th>"
     return (
         "<table class='kri-table'><thead><tr>"
-        "<th>Rang</th><th>Kommun</th><th class='num'>KRI Poäng</th><th>Riskklass</th>"
-        "</tr></thead><tbody>"
+        + headers
+        + "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
+    )
+
+
+def _robust_subtitle(df: pd.DataFrame, fallback: str) -> str:
+    """Card subtitle carrying the robustness count for the rows below it."""
+    if "is_robust" not in df.columns or df["is_robust"].isna().any():
+        return fallback
+    n_robust = int(df["is_robust"].sum())
+    return (
+        f"{n_robust} av {len(df)} robusta vid "
+        f"\u00b1{_fmt_decimal(SENSITIVITY['delta'], 2)} viktvariation"
     )
 
 
@@ -462,6 +527,29 @@ with st.expander("Om rankningstabellerna", expanded=False):
         "kommuner över 75:e percentilen som Hög risk."
     )
 
+if sens_df is not None:
+    _sens_year = sens_df[sens_df["year"] == selected_year]
+    _n_robust = int(_sens_year["is_robust"].sum())
+    _n_total = len(_sens_year)
+    with st.expander("Om osäkerhetsbandet", expanded=False):
+        st.caption(
+            "Vikterna i KRI (0,25 skuld · 0,25 arbetslöshet · 0,20 försörjningskvot · "
+            "0,15 befolkning · 0,15 skattekraft) är motiverade utifrån offentlig "
+            "finansieringsteori, inte skattade ur data. **Osäkerhetskolumnen** visar hur "
+            "mycket rangordningen beror på just det valet. "
+            f"Varje vikt tillåts variera med \u00b1{_fmt_decimal(SENSITIVITY['delta'], 2)} "
+            f"kring sitt nominella värde, indexet räknas om "
+            f"{int(SENSITIVITY['n_draws'])} gånger, och för varje kommun redovisas "
+            "intervallet mellan 5:e och 95:e percentilen av rangen. "
+            "En kommun märks **robust** när den behåller sin riskklass i minst "
+            f"{SENSITIVITY['robust_threshold']:.0%} av omräkningarna; övriga märks "
+            "**gränsfall**, vilket betyder att kommunen ligger nära gränsen mellan två "
+            "riskklasser - inte att klassningen är felaktig. "
+            f"För {selected_year} är {_n_robust} av {_n_total} kommuner robusta. "
+            "Kommunens publicerade KRI-poäng, rang och riskklass påverkas aldrig av "
+            "denna beräkning. Se sidan Källor för metod och avgränsningar."
+        )
+
 tbl1, tbl2 = st.columns(2, gap="medium")
 
 with tbl1:
@@ -469,7 +557,7 @@ with tbl1:
         st.markdown(
             render_card_header(
                 SWEDISH_LABELS["top_highest_risk"],
-                f"Mest sårbara kommuner {selected_year}",
+                _robust_subtitle(top15_high, f"Mest sårbara kommuner {selected_year}"),
                 "Rankning",
             ),
             unsafe_allow_html=True,
@@ -481,7 +569,7 @@ with tbl2:
         st.markdown(
             render_card_header(
                 SWEDISH_LABELS["top_lowest_risk"],
-                f"Mest robusta kommuner {selected_year}",
+                _robust_subtitle(top15_low, f"Mest robusta kommuner {selected_year}"),
                 "Rankning",
             ),
             unsafe_allow_html=True,

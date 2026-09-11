@@ -94,6 +94,31 @@ WEIGHTS: Dict[str, float] = {
 # Verify weights sum to 1.0
 assert abs(sum(WEIGHTS.values()) - 1.0) < 0.001, "Weights must sum to 1.0"
 
+# Canonical weight order. Every array-based consumer (sensitivity, charts)
+# must index weights through this list rather than relying on dict order.
+WEIGHT_ORDER = ["debt", "unemployment", "dependency_ratio", "population_growth", "tax_base"]
+assert set(WEIGHT_ORDER) == set(WEIGHTS), "WEIGHT_ORDER must cover exactly the weighted variables"
+
+# =============================================================================
+# WEIGHT SENSITIVITY
+# =============================================================================
+# The weights above are argued from public-finance theory, not estimated, which
+# is a fair criticism of any composite indicator. Rather than pretend a single
+# correct vector exists, the dashboard measures how much the published ranking
+# depends on this particular choice: each weight is allowed to vary by +-delta,
+# the index is recomputed n_draws times, and the spread is reported alongside
+# the point estimate.
+#
+# These values are quoted verbatim in the UI and in docs/methodology.md. Change
+# them only together with that text — and never at runtime; the seed is what
+# makes the published band reproducible.
+SENSITIVITY: Dict[str, float] = {
+    "n_draws": 1000,
+    "delta": 0.05,            # each weight varies uniformly by +-5 percentage points
+    "robust_threshold": 0.90,  # keeps its risk class in >=90 % of draws
+    "seed": 20240101,
+}
+
 # Variable direction: True = high value means high risk
 # Variables where high = low risk are inverted (multiplied by -1) before z-score
 VARIABLE_DIRECTION = {
@@ -254,6 +279,12 @@ SWEDISH_LABELS: Dict[str, str] = {
     # Messages
     "data_source": "Källa: SCB, Arbetsförmedlingen",
     "last_updated": "Senast uppdaterad",
+
+    # Weight sensitivity
+    "uncertainty": "Osäkerhet",
+    "robust": "Robust",
+    "boundary_case": "Gränsfall",
+    "weight_sensitivity": "Viktkänslighet",
 }
 
 # =============================================================================

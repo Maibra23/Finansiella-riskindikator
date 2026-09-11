@@ -26,7 +26,7 @@ from app.styles.theme import (
     render_page_header,
 )
 from src.clustering import get_peer_municipalities
-from src.config import MUNICIPALITIES, SWEDISH_LABELS
+from src.config import MUNICIPALITIES, SENSITIVITY, SWEDISH_LABELS
 from src.risk_scale import RiskScale
 from src.validators import get_municipality_flags
 
@@ -75,10 +75,26 @@ def _load() -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False)
+def _load_sensitivity() -> pd.DataFrame | None:
+    """Weight-sensitivity band, or None when the optional layer is not built."""
+    p = PROJECT_ROOT / "data" / "processed" / "kri_sensitivity.parquet"
+    if not p.exists():
+        return None
+    try:
+        df = pd.read_parquet(p)
+        df["year"] = df["year"].astype(int)
+        return df
+    except Exception:
+        return None
+
+
 if "kri_df" in st.session_state:
     kri_df: pd.DataFrame = st.session_state["kri_df"]
 else:
     kri_df = _load()
+
+sens_df = _load_sensitivity()
 
 available_years = sorted(kri_df["year"].unique().tolist())
 default_year = st.session_state.get("selected_year", max(available_years))
@@ -144,6 +160,23 @@ risk_colors = {"Låg": "#2E7D5B", "Medel": "#D4A03C", "Hög": "#B94A48"}
 risk = str(sel_row["risk_class"])
 risk_color = risk_colors.get(risk, "#6B7280")
 
+# Weight-sensitivity row for the selected municipality, if the layer is built.
+sens_row = None
+if sens_df is not None:
+    _m = sens_df[
+        (sens_df["municipality_code"] == selected_code) & (sens_df["year"] == selected_year)
+    ]
+    sens_row = _m.iloc[0] if not _m.empty else None
+
+# One appended segment rather than a seventh KPI card — the row is already at six
+# and render_kpi_card has no free slot.
+_uncertainty_chip = ""
+if sens_row is not None:
+    _uncertainty_chip = (
+        f" &nbsp;·&nbsp; {SWEDISH_LABELS['uncertainty'].lower()} "
+        f"{int(sens_row['rank_p05'])}-{int(sens_row['rank_p95'])}"
+    )
+
 st.markdown(
     f"""
     <div style="display:flex;align-items:center;gap:16px;margin:8px 0 20px 0;">
@@ -151,7 +184,7 @@ st.markdown(
                      padding:3px 12px;font-size:13px;font-weight:600;">{risk}</span>
         <span style="color:#6B7280;font-size:14px;">
             KRI {float(sel_row['kri_score']):.2f} &nbsp;·&nbsp;
-            Rang {int(sel_row['rank'])} av 290
+            Rang {int(sel_row['rank'])} av 290{_uncertainty_chip}
         </span>
     </div>
     """,
@@ -248,6 +281,25 @@ st.caption(
     "Högre KRI, högre skuld, högre arbetslöshet, högre försörjningskvot och lägre skattekraft "
     "anger i regel högre strukturell sårbarhet (utom skattekraft där lägre än rikssnitt är sämre)."
 )
+
+if sens_row is not None:
+    _stability = float(sens_row["class_stability"])
+    _delta_txt = f"{SENSITIVITY['delta']:.2f}".replace(".", ",")
+    if bool(sens_row["is_robust"]):
+        st.caption(
+            f"**Viktkänslighet:** klassningen är stabil - {selected_name} hamnar i "
+            f"{risk} risk i {_stability:.0%} av de {int(SENSITIVITY['n_draws'])} omräkningar "
+            f"där varje vikt varierats med \u00b1{_delta_txt}. Rangen ligger då mellan "
+            f"{int(sens_row['rank_p05'])} och {int(sens_row['rank_p95'])} av 290."
+        )
+    else:
+        st.caption(
+            f"**Viktkänslighet:** klassningen är känslig för viktvalet - {selected_name} "
+            f"hamnar i {risk} risk i {_stability:.0%} av de {int(SENSITIVITY['n_draws'])} "
+            f"omräkningar där varje vikt varierats med \u00b1{_delta_txt}, och rangen "
+            f"rör sig mellan {int(sens_row['rank_p05'])} och {int(sens_row['rank_p95'])} "
+            f"av 290. Kommunen ligger nära gränsen mellan två riskklasser."
+        )
 
 st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 

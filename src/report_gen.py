@@ -35,6 +35,7 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.frames import Frame
 
+from src.config import SENSITIVITY
 from src.risk_scale import RiskScale
 
 logger = logging.getLogger(__name__)
@@ -223,6 +224,42 @@ class _KRIDocTemplate(BaseDocTemplate):
         canvas.restoreState()
 
 
+SENSITIVITY_PATH = PROJECT_ROOT / "data" / "processed" / "kri_sensitivity.parquet"
+
+
+def _load_sensitivity() -> pd.DataFrame | None:
+    """Weight-sensitivity band, or None when the optional layer is not built."""
+    if not SENSITIVITY_PATH.exists():
+        return None
+    try:
+        df = pd.read_parquet(SENSITIVITY_PATH)
+        df["year"] = df["year"].astype(int)
+        return df
+    except Exception as exc:
+        logger.warning("Could not read sensitivity layer: %s", exc)
+        return None
+
+
+def _uncertainty_by_rank(
+    kri_df: pd.DataFrame, sensitivity_df: pd.DataFrame | None, year: int
+) -> dict[int, str] | None:
+    """Map published rank -> pre-formatted uncertainty cell for *year*."""
+    if sensitivity_df is None:
+        return None
+    merged = kri_df.merge(sensitivity_df, on=["municipality_code", "year"])
+    sub = merged[merged["year"] == year]
+    if sub.empty:
+        return None
+    return {
+        int(r["rank"]): (
+            f"{int(r['rank_p05'])}-{int(r['rank_p95'])}"
+            if bool(r["is_robust"])
+            else "gränsfall"
+        )
+        for _, r in sub.iterrows()
+    }
+
+
 # ---------------------------------------------------------------------------
 # Drawing helpers
 # ---------------------------------------------------------------------------
@@ -332,25 +369,41 @@ def _trend_drawing(yearly_avg: dict[int, float], width: float, height: float) ->
 def _risk_table(
     rows: list[tuple[int, str, float, str]],
     styles_dict: dict[str, ParagraphStyle],
+    uncertainty: dict[int, str] | None = None,
 ) -> Table:
-    """Build a styled table: Rang | Kommun | KRI Poäng | Riskklass."""
+    """Build a styled table: Rang | Kommun | KRI Poäng | Riskklass [| Osäkerhet].
+
+    *uncertainty* maps rank to a pre-formatted cell ("4-13" or "gränsfall").
+    Omitted when the weight-sensitivity layer is not built, so the exported
+    report carries exactly the same caveats the screen does — no more, no less.
+    """
+    show_unc = bool(uncertainty)
     header = [
         Paragraph("Rang", styles_dict["table_header"]),
         Paragraph("Kommun", styles_dict["table_header"]),
         Paragraph("KRI Poäng", styles_dict["table_header"]),
         Paragraph("Riskklass", styles_dict["table_header"]),
     ]
+    if show_unc:
+        header.append(Paragraph("Osäkerhet", styles_dict["table_header"]))
     data = [header]
     risk_color_map = {"Hög": C_HIGH, "Medel": C_MED, "Låg": C_LOW}
     for rank, name, score, risk in rows:
-        data.append([
+        row = [
             Paragraph(str(rank), styles_dict["table_cell"]),
             Paragraph(name, styles_dict["table_cell"]),
             Paragraph(f"{score:.3f}".replace(".", ","), styles_dict["table_cell"]),
             Paragraph(risk, styles_dict["table_cell"]),
-        ])
+        ]
+        if show_unc:
+            row.append(Paragraph((uncertainty or {}).get(rank, "–"), styles_dict["table_cell"]))
+        data.append(row)
 
-    col_widths = [1.4 * cm, 6.2 * cm, 2.6 * cm, 2.4 * cm]
+    col_widths = (
+        [1.4 * cm, 4.8 * cm, 2.4 * cm, 2.2 * cm, 2.4 * cm]
+        if show_unc
+        else [1.4 * cm, 6.2 * cm, 2.6 * cm, 2.4 * cm]
+    )
     t = Table(data, colWidths=col_widths, repeatRows=1)
 
     ts = TableStyle([
@@ -676,6 +729,49 @@ def generate_report(
     ]))
     story.append(var_table)
 
+    story.append(Paragraph("Viktkänslighet", S["h2"]))
+    _sens_meth = _load_sensitivity()
+    if _sens_meth is None:
+        story.append(Paragraph(
+            "Vikterna är motiverade utifrån offentlig finansieringsteori och är alltså "
+            "valda, inte skattade ur data.",
+            S["body"],
+        ))
+    else:
+        _merged_meth = kri_df.merge(_sens_meth, on=["municipality_code", "year"])
+        _my = _merged_meth[_merged_meth["year"] == report_year]
+        _robust_n = int(_my["is_robust"].sum())
+        _modal_ok = int((_my["modal_class"] == _my["risk_class"]).sum())
+        _delta_meth = f"{SENSITIVITY['delta']:.2f}".replace(".", ",")
+        story.append(Paragraph(
+            f"Vikterna är motiverade utifrån offentlig finansieringsteori och är alltså "
+            f"valda, inte skattade ur data. För att visa hur mycket rangordningen beror "
+            f"på det valet tillåts varje vikt variera likformigt med ±{_delta_meth} kring "
+            f"sitt nominella värde, varefter vektorn normeras så att summan förblir 1. "
+            f"Indexet räknas om {int(SENSITIVITY['n_draws'])} gånger och kvartilgränserna "
+            f"beräknas om inom varje omräkning. En kommun kallas robust när den behåller "
+            f"sin riskklass i minst {SENSITIVITY['robust_threshold']:.0%} av omräkningarna.",
+            S["body"],
+        ))
+        story.append(Paragraph(
+            f"För {report_year} är {_robust_n} av {len(_my)} kommuner robusta. Framför allt "
+            f"gäller att den publicerade riskklassen också är den vanligaste klassen över "
+            f"samtliga omräkningar för {_modal_ok} av {len(_my)} kommuner — "
+            f"känslighetsanalysen bekräftar indexet snarare än ifrågasätter det. "
+            f"Analysen avser osäkerhet i viktningen, inte i underliggande data eller i "
+            f"valet av indikatorer.",
+            S["body"],
+        ))
+        story.append(Paragraph(
+            "Ett alternativ vore att låta principalkomponentanalys bestämma vikterna. Den "
+            "metoden prövades och förkastades: första principalkomponenten laddar negativt "
+            "på skuld samtliga år 2010-2024 och skulle därmed rangordna de mest skuldsatta "
+            "kommunerna bland de minst riskutsatta. Den förklarar dessutom endast cirka "
+            "44 % av variansen, och vikterna skattas per år vilket omöjliggör jämförelser "
+            "över tid.",
+            S["body"],
+        ))
+
     story.append(Paragraph("Klassificering", S["h2"]))
     story.append(Paragraph(
         "Kommuner klassificeras baserat på kvantilandelar inom varje år: kommuner med KRI "
@@ -734,7 +830,22 @@ def generate_report(
         (int(r["rank"]), str(r["municipality_name"]), float(r["kri_score"]), str(r["risk_class"]))
         for _, r in top20_rows.iterrows()
     ]
-    story.append(_risk_table(top20_data, S))
+    _sens_df = _load_sensitivity()
+    _unc = _uncertainty_by_rank(kri_df, _sens_df, report_year)
+    story.append(_risk_table(top20_data, S, uncertainty=_unc))
+    if _unc is not None:
+        _delta_sv = f"{SENSITIVITY['delta']:.2f}".replace(".", ",")
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            f"Kolumnen Osäkerhet visar hur rangen rör sig när varje vikt tillåts variera "
+            f"med ±{_delta_sv} kring sitt nominella värde och indexet räknas om "
+            f"{int(SENSITIVITY['n_draws'])} gånger: intervallet mellan 5:e och 95:e "
+            f"percentilen av rangen. Kommuner som byter riskklass i mer än "
+            f"{1 - SENSITIVITY['robust_threshold']:.0%} av omräkningarna markeras "
+            f"gränsfall och ligger nära gränsen mellan två riskklasser. "
+            f"Se avsnittet Viktkänslighet nedan.",
+            S["small"],
+        ))
 
     story.append(PageBreak())
 

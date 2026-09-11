@@ -1,6 +1,8 @@
 """Verify pipeline output completeness and sanity checks."""
-import pandas as pd
+import os
 import sys
+
+import pandas as pd
 
 df = pd.read_parquet('data/processed/kri_base_data.parquet')
 
@@ -66,6 +68,23 @@ if not sthlm.empty:
     d_val = sthlm['debt_per_capita'].values[0]
     u_val = sthlm['unemployment'].values[0]
     print(f'Stockholm 2023: debt={d_val:,.0f} SEK, unemployment={u_val:.2f}%')
+
+print()
+print('=== WEIGHT SENSITIVITY LAYER ===')
+
+_sens_path = 'data/processed/kri_sensitivity.parquet'
+if not os.path.exists(_sens_path):
+    print('kri_sensitivity.parquet missing - optional layer, dashboard degrades cleanly')
+    print('  build it with: python scripts/run_sensitivity.py')
+else:
+    _sens = pd.read_parquet(_sens_path)
+    _merged = df.merge(_sens, on=['municipality_code', 'year'], how='left', indicator=True)
+    _unmatched = int((_merged['_merge'] != 'both').sum())
+    print(f'kri_sensitivity.parquet: {len(_sens)} rows, {_unmatched} unmatched on join')
+    if _unmatched:
+        errors.append(f'Sensitivity layer does not join cleanly: {_unmatched} unmatched rows')
+    if len(_sens) != len(df):
+        errors.append(f'Sensitivity row count {len(_sens)} != results row count {len(df)}')
 
 print()
 if errors:

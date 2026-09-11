@@ -496,6 +496,79 @@ z(x_i,t) = (x_i,t − mean(x_t)) / std(x_t)
 
 **Rationale:** Quantile-based classification is robust to outliers and produces a stable distribution regardless of whether all municipalities improve or worsen in absolute terms. K-means clustering was evaluated as an alternative but produces year-to-year instability in cluster boundaries.
 
+### 3.5 Weight sensitivity
+
+The weights in §3.2 are argued from public-finance theory rather than estimated from data. This is the standard and fair criticism of any composite indicator, and the dashboard answers it with a measurement rather than an argument, following the OECD/JRC *Handbook on Constructing Composite Indicators*: treat the weights as an uncertain input and propagate that uncertainty to the output.
+
+#### Method
+
+Each weight is drawn uniformly from `[w − δ, w + δ]` with **δ = 0.05**, and the vector is renormalised to sum to 1. The renormalisation is what makes the draw honest — weights must still sum to one, so raising the debt weight necessarily lowers something else, which is exactly the trade-off a critic is pointing at. Draws where renormalisation pushes a weight beyond δ are rejected (≈16% of draws), so the claim *no weight ever moves more than five percentage points* holds exactly rather than approximately.
+
+The index is recomputed **N = 1000** times. Quartile cut points are recomputed *inside each draw*: holding them fixed at the published p25/p75 would measure score movement only, and the question is class movement. This reproduces exactly what `index_builder.classify()` would have done had those been the real weights.
+
+A uniform distribution is used rather than a Dirichlet because it can be explained in a caption, and because a reader who disagrees with δ can reason about what a different δ would imply. The generator is seeded from `config.SENSITIVITY["seed"]`, so the published band is reproducible — a band that shifted between pipeline runs would undermine trust in the whole dashboard.
+
+For each municipality and year the analysis records the 5th, 50th and 95th percentile of rank, the share of draws in which the municipality keeps its **published** risk class (`class_stability`), and the most frequent class across draws (`modal_class`). A municipality is labelled **robust** when `class_stability ≥ 0.90` and **gränsfall** (boundary case) otherwise. *Gränsfall* means the municipality sits near a boundary between two risk classes — not that its classification is wrong.
+
+#### Results (2024, n = 290)
+
+| Measure | Value |
+|---|---|
+| Robust (class holds in ≥90% of draws) | 241 / 290 (83%) |
+| Gränsfall (boundary-fragile) | 49 / 290 (17%) |
+| **Modal class differs from published class** | **1 / 290** |
+| Median 90% rank interval | 26 places |
+
+The third row is the substantive finding: across 290 municipalities, the class that wins the vote differs from the published class exactly once. **The sensitivity analysis corroborates the index rather than undermining it.**
+
+Fragility concentrates where theory predicts. The Medel class has the widest median band (35 places) because a mid-table municipality has two boundaries to fall across, while the extremes are pinned by the data rather than by the weights. Kiruna is the clearest individual case: published at rank 67, comfortably inside Hög risk, but with a plausible range of 29–137 and a class that holds in only 52% of draws.
+
+#### Sensitivity to the choice of δ
+
+δ = 0.05 is itself a judgement call, so the result is reported at three values:
+
+| δ | Robust | Gränsfall | Modal ≠ published | Median band |
+|---|---|---|---|---|
+| 0.03 | 259 / 290 | 31 | 1 | 15 places |
+| **0.05** (used) | **241 / 290** | **49** | **1** | **26 places** |
+| 0.10 | 194 / 290 | 96 | 2 | 52 places |
+
+The number of boundary cases grows with δ, as it must. The conclusion does not: the published class remains the most frequent class for at least 288 of 290 municipalities at all three values.
+
+#### Rejected alternative: PCA weights
+
+The obvious data-driven alternative is to let principal component analysis determine the weights. It was tested on all fifteen years and rejected on three grounds.
+
+**1. PC1 loads negatively on debt.** In every year 2010–2024 the first principal component's loading on `z_debt` is negative (−0.08 in 2010, drifting to −0.39 by 2024); unemployment also turns negative in 2020, 2021 and 2024. An index built on PC1 would rank Sweden's most indebted municipalities among its safest. Concretely: the 29 most indebted municipalities sit at the 70th risk percentile under the current weights and at the **19th** under PCA. Eskilstuna, carrying 302,130 SEK per inhabitant, scores +0.92 (Hög risk) today and −1.21 (low risk) under PCA.
+
+The reason is visible in the correlation matrix: `z_debt` correlates negatively with dependency (−0.33), population decline (−0.30) and tax base (−0.25). Growing, affluent suburbs borrow to build infrastructure; shrinking rural municipalities carry little debt but weak demographics. **PC1 is not a risk factor — it is an urban-growth versus rural-decline axis.**
+
+**2. No dominant component.** PC1 carries only 43.9% of variance and PC2 carries 24.2%; two components pass the Kaiser criterion. PCA-based weighting is defensible when one component clearly dominates (conventionally ≳70%). Compressing a genuinely two-dimensional structure onto one axis would discard 56% of the variance as noise.
+
+**3. No comparability across time.** PCA weights are re-estimated per year and move enormously over the period — the debt weight by a factor of 5 (0.041 → 0.195), the unemployment weight by a factor of 23 (0.186 → 0.008). A municipality's score would then change because the weights moved, not because its finances did, which destroys the 2010–2024 trend analysis that is the dashboard's core value.
+
+A sign-constrained repair was also tested. Non-negative PC1 (‖w‖₂ = 1, w ≥ 0, projected power iteration) assigns **exactly zero weight to debt in all fifteen years**, and zero to unemployment from 2020 onward. Constraining PCA to be theory-consistent makes it delete the two variables the index exists to measure.
+
+One legitimate observation does come out of the PCA: dependency, population growth and tax base intercorrelate at 0.40–0.60 and partly measure a single construct — demographic and tax capacity — which together carries 0.50 of the weight against debt's 0.25. A defensible structural revision would group the indicators into theoretical pillars, not let an eigenvector choose the weights.
+
+#### Scope and limitations
+
+The band measures sensitivity to **one** subjective choice. It does not make the index objective; it makes the index's dependence on the weighting visible and measurable, which is a different and more defensible claim. Specifically excluded:
+
+- **Data uncertainty.** Measurement error in SCB debt figures and interpolated series is not modelled.
+- **Indicator-set uncertainty.** Adding or removing a variable would move results substantially more than reweighting the current five.
+- **Dependence between weights.** Draws are independent. Renormalisation captures the sum-to-one constraint but not a prior belief that, say, debt should always outweigh population.
+
+No published `kri_score`, `rank` or `risk_class` is altered by this analysis. It is stored in a separate artefact (`data/processed/kri_sensitivity.parquet`) and joined at display time; deleting that file restores the dashboard exactly as it was before the layer existed.
+
+#### Reproduction
+
+```bash
+python scripts/run_sensitivity.py
+```
+
+Parameters live in `src/config.py` under `SENSITIVITY`. Implementation: `src/sensitivity.py`. Tests: `tests/test_sensitivity.py`.
+
 ---
 
 ## 4. Evaluation and Validation
