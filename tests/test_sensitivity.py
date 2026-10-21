@@ -181,15 +181,22 @@ class TestSubstance:
         fragile = (~sens.loc[sens["year"] == latest_year, "is_robust"]).sum()
         assert 5 <= fragile <= 120
 
-    def test_extreme_municipalities_are_the_stable_ones(
+    def test_instability_concentrates_at_class_boundaries(
         self, kri_df: pd.DataFrame, sens: pd.DataFrame, latest_year: int
     ) -> None:
-        """Rank 1 is pinned by the data; a mid-table kommun is pinned by the weights."""
+        """Class changes need a cut point nearby: the extremes and the middle of the
+        Medel class are pinned by the data; kommuner within 10 ranks of a quartile
+        boundary are the ones the weights can move."""
         merged = kri_df.merge(sens, on=["municipality_code", "year"])
         m = merged[merged["year"] == latest_year]
+        upper = int((m["risk_class"] == "Hög").sum())        # last Hög rank
+        lower = len(m) - int((m["risk_class"] == "Låg").sum())  # last Medel rank
+        near = m[(m["rank"].sub(upper).abs() <= 10) | (m["rank"].sub(lower).abs() <= 10)]
         top10 = m.nsmallest(10, "rank")["class_stability"].mean()
         middle = m[m["rank"].between(120, 170)]["class_stability"].mean()
-        assert top10 > middle
+        boundary = near["class_stability"].mean()
+        assert top10 > boundary
+        assert middle > boundary
 
 
 @pytest.mark.unit

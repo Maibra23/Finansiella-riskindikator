@@ -302,12 +302,12 @@ st.markdown("**Hur känsligt är resultatet för valet av ±-intervall?**")
 st.dataframe(
     pd.DataFrame(
         [
-            {"Viktvariation": "±0,03", "Robusta": "259 av 290", "Gränsfall": 31,
-             "Modal ≠ publicerad": 1, "Medianintervall": "15 platser"},
-            {"Viktvariation": "±0,05 (används)", "Robusta": "241 av 290", "Gränsfall": 49,
-             "Modal ≠ publicerad": 1, "Medianintervall": "26 platser"},
-            {"Viktvariation": "±0,10", "Robusta": "194 av 290", "Gränsfall": 96,
-             "Modal ≠ publicerad": 2, "Medianintervall": "52 platser"},
+            {"Viktvariation": "±0,03", "Robusta": "263 av 290", "Gränsfall": 27,
+             "Modal ≠ publicerad": 4, "Medianintervall": "15 platser"},
+            {"Viktvariation": "±0,05 (används)", "Robusta": "237 av 290", "Gränsfall": 53,
+             "Modal ≠ publicerad": 4, "Medianintervall": "25 platser"},
+            {"Viktvariation": "±0,10", "Robusta": "195 av 290", "Gränsfall": 95,
+             "Modal ≠ publicerad": 4, "Medianintervall": "49 platser"},
         ]
     ),
     use_container_width=True,
@@ -315,8 +315,8 @@ st.dataframe(
 )
 st.caption(
     "Antalet gränsfall växer med intervallet, som väntat, men slutsatsen gör det inte: "
-    "den publicerade klassen är den vanligaste klassen för minst 288 av 290 kommuner "
-    "vid samtliga tre intervall."
+    "den publicerade klassen är den vanligaste klassen för 286 av 290 kommuner "
+    "vid samtliga tre intervall (2024)."
 )
 
 with st.expander("Varför inte PCA-vikter? En prövad och förkastad metod", expanded=False):
@@ -327,24 +327,25 @@ Det naturliga alternativet är att låta data bestämma vikterna genom
 av tre skäl:
 
 1. **Fel tecken på skuld.** Första principalkomponenten laddar *negativt* på skuld
-   varje år 2010 - 2024 (mellan -0,08 och -0,39). Ett index byggt på den skulle rangordna
-   Sveriges mest skuldsatta kommuner bland de minst riskutsatta. Eskilstuna, med
-   302 000 kr i skuld per invånare, skulle gå från Hög risk till klart under
-   rikssnittet. PC1 mäter inte risk utan en tillväxt-tillbakagång-axel: växande,
+   varje år från 2012 (ned till -0,30) och nära noll 2010 - 2011. Ett index byggt på
+   den skulle rangordna Sveriges mest skuldsatta kommuner bland de minst riskutsatta:
+   de 29 mest skuldsatta kommunerna hamnar i genomsnitt på 24:e i stället för 71:a
+   riskpercentilen. Eskilstuna, med 100 000 kr i skuld per invånare, skulle gå från
+   Hög risk (rang 9) till klart under rikssnittet. PC1 mäter inte risk utan en tillväxt-tillbakagång-axel: växande,
    välbeställda kommuner lånar till infrastruktur, medan krympande kommuner har
    låg skuld men svag demografi.
 
-2. **Ingen dominerande komponent.** PC1 förklarar bara ~44 % av variansen och PC2
+2. **Ingen dominerande komponent.** PC1 förklarar bara 40 - 44 % av variansen och PC2
    ligger över Kaiser-kriteriet. Viktning via PCA förutsätter att en komponent
    dominerar, vilket den inte gör här.
 
 3. **Ingen jämförbarhet över tid.** PCA-vikterna skattas per år och rör sig kraftigt
-   - skuldvikten varierar med faktor 5 och arbetslöshetsvikten med faktor 23 över
-   perioden. En kommuns poäng skulle då förändras för att vikterna rört sig, inte
+   - skuldvikten varierar mellan 0 och 0,15 och arbetslöshetsvikten mellan 0,002 och
+   0,20 över perioden. En kommuns poäng skulle då förändras för att vikterna rört sig, inte
    för att ekonomin gjort det, vilket omöjliggör tidsserien.
 
 En teckenbegränsad variant (icke-negativ PC1) prövades också. Den tilldelar skuld
-vikten **noll** samtliga femton år. Den "lagar" alltså metoden genom att stryka den
+vikten **noll** i fjorton av femton år. Den "lagar" alltså metoden genom att stryka den
 variabel indexet finns till för att mäta.
 """
     )

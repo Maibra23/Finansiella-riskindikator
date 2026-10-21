@@ -13,6 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.shapes import Drawing, Line, Rect, String
@@ -534,6 +535,31 @@ def generate_report(
     avg_kri = float(latest["kri_score"].mean())
     median_debt = float(latest["debt_per_capita"].median())
 
+    # Figures quoted in the findings and conclusions, computed so the text cannot
+    # drift from the data.
+    _ranks = kri_df.pivot(index="municipality_code", columns="year", values="rank")
+    _years = sorted(_ranks.columns)
+    rank_corr_consecutive = float(np.mean([
+        _ranks[a].corr(_ranks[b], method="spearman") for a, b in zip(_years, _years[1:])
+    ]))
+    rank_corr_span = float(_ranks[_years[0]].corr(_ranks[_years[-1]], method="spearman"))
+    n_always_high = int(
+        (kri_df.pivot(index="municipality_code", columns="year", values="risk_class") == "Hög")
+        .all(axis=1).sum()
+    )
+    _sd = kri_df.groupby("year")["kri_score"].std()
+    _contrib = latest[[f"contribution_{k}" for k in
+                       ("debt", "unemployment", "dependency", "population", "tax_base")]]
+    _cov = _contrib.cov()
+    var_share = {c.removeprefix("contribution_"): float(_cov[c].sum() / latest["kri_score"].var())
+                 for c in _contrib.columns}
+
+    def _sv(x: float, d: int = 2) -> str:
+        return f"{x:.{d}f}".replace(".", ",")
+
+    def _pct(x: float) -> str:
+        return f"{x * 100:.0f} %"
+
     top20_rows = latest.sort_values("rank").head(20)
     top5_high = top20_rows.head(5)
     bot5 = latest.sort_values("rank", ascending=False).head(5)
@@ -650,10 +676,11 @@ def generate_report(
         "hög arbetslöshet och en åldrande befolkning med låg skattekraft.",
         "Storstadskommuner och förorter med stark skattebas (t.ex. Danderyd, Täby, Solna) "
         "uppvisar genomgående låg risk under hela analysperioden.",
-        "Rangordningen är stabil över tid: rangkorrelationen mellan på varandra följande "
-        "år är 0,97 och 27 kommuner har klassats som högrisk varje år sedan 2010. "
-        "Spridningen mellan kommuner har samtidigt minskat - standardavvikelsen i KRI "
-        "har gått från 0,58 (2010) till 0,43 (2024).",
+        f"Rangordningen är stabil över tid: rangkorrelationen mellan på varandra följande "
+        f"år är i genomsnitt {_sv(rank_corr_consecutive)} och {n_always_high} kommuner har "
+        f"klassats som högrisk varje år sedan {yr_min}. "
+        f"Spridningen mellan kommuner har samtidigt minskat - standardavvikelsen i KRI "
+        f"har gått från {_sv(_sd[yr_min])} ({yr_min}) till {_sv(_sd[yr_max])} ({yr_max}).",
     ]
     for f in findings:
         story.append(Paragraph(f"• {f}", S["body"]))
@@ -707,7 +734,7 @@ def generate_report(
         Paragraph("Källa", S["table_header"]),
     ]
     var_rows = [
-        ("Skuld per capita (kr)", "25 %", "Hög = hög risk", "SCB BalansKn"),
+        ("Långfristig skuld per capita (kr)", "25 %", "Hög = hög risk", "SCB BalansKn, post 089"),
         ("Arbetslöshet (%)", "25 %", "Hög = hög risk", "Arbetsförmedlingen/Kolada"),
         ("Försörjningskvot", "20 %", "Hög = hög risk", "SCB BefolkningNy"),
         ("Befolkningstillväxt 5 år (%)", "15 %", "Negativ = hög risk", "SCB BefolkningNy"),
@@ -767,9 +794,9 @@ def generate_report(
         story.append(Paragraph(
             "Ett alternativ vore att låta principalkomponentanalys bestämma vikterna. Den "
             "metoden prövades och förkastades: första principalkomponenten laddar negativt "
-            "på skuld samtliga år 2010-2024 och skulle därmed rangordna de mest skuldsatta "
-            "kommunerna bland de minst riskutsatta. Den förklarar dessutom endast cirka "
-            "44 % av variansen, och vikterna skattas per år vilket omöjliggör jämförelser "
+            "på skuld varje år från 2012 och skulle därmed rangordna de mest skuldsatta "
+            "kommunerna bland de minst riskutsatta. Den förklarar dessutom endast 40-44 % "
+            "av variansen, och vikterna skattas per år vilket omöjliggör jämförelser "
             "över tid.",
             S["body"],
         ))
@@ -860,18 +887,22 @@ def generate_report(
         f"Strukturell ekonomisk sårbarhet bland svenska kommuner är bestående och geografiskt "
         f"koncentrerad. Kommuner med högrisk återfinns systematiskt i glesbygd och bruksorter, "
         f"medan kommuner med lågrisk domineras av storstadsförorter med stark skattebas.",
-        "Arbetslöshet och skattekraft är de enskilt starkaste riskdrivarna och står för "
-        "26 % respektive 22 % av variansen i KRI. Skuld per capita väger tyngst i formeln "
-        "(0,25) men bidrar minst till spridningen (12 %), eftersom hög skuld i praktiken "
-        "förekommer både i växande storstadskommuner och i krympande glesbygdskommuner.",
+        f"De fem faktorerna bidrar nästan lika mycket till spridningen i KRI {report_year}: "
+        f"arbetslöshet {_pct(var_share['unemployment'])}, skattekraft "
+        f"{_pct(var_share['tax_base'])}, försörjningskvot {_pct(var_share['dependency'])}, "
+        f"befolkningstillväxt {_pct(var_share['population'])} och skuld "
+        f"{_pct(var_share['debt'])}. Skuld per capita väger tyngst i formeln (0,25) men "
+        f"bidrar minst, eftersom hög skuld förekommer både i växande och i krympande "
+        f"kommuner och därför delvis tar ut de demografiska faktorerna.",
         "Riskklasserna är relativa och definieras av kvartiler inom varje år. Andelen "
         "kommuner i varje klass är därför konstant (25 % Hög, 50 % Medel, 25 % Låg) och "
         "kan inte användas för att avläsa om riket som helhet förbättrats eller försämrats. "
         "Måttet visar hur kommuner förhåller sig till varandra, inte till en absolut nivå.",
-        "Tidsseriestabilitet är hög: rangkorrelationen mellan på varandra följande år är "
-        "0,97, och mellan 2010 och 2024 fortfarande 0,63. Det bekräftar att KRI mäter "
-        "strukturell, inte konjunkturell, sårbarhet. 27 kommuner har klassats som Hög risk "
-        "varje år under hela perioden.",
+        f"Tidsseriestabilitet är hög: rangkorrelationen mellan på varandra följande år är "
+        f"i genomsnitt {_sv(rank_corr_consecutive)}, och mellan {yr_min} och {yr_max} "
+        f"fortfarande {_sv(rank_corr_span)}. Det bekräftar att KRI mäter strukturell, inte "
+        f"konjunkturell, sårbarhet. {n_always_high} kommuner har klassats som Hög risk "
+        f"varje år under hela perioden.",
     ]
     for c in conclusions:
         story.append(Paragraph(f"• {c}", S["body"]))
@@ -891,7 +922,9 @@ def generate_report(
         "omgivande kommuner förbättras ännu mer.",
         "Indexet inkluderar inte externa faktorer som statsbidrag, exploateringsintäkter "
         "eller extraordinära händelser.",
-        "Skuldbegreppet avser långfristiga skulder och fångar inte kortfristiga likviditetsrisker.",
+        "Skuldbegreppet avser långfristiga skulder (SCB BalansKn, post 089) och fångar inte "
+        "kortfristiga likviditetsrisker. Det omfattar även lån som kommunen vidareutlånat till "
+        "egna bolag (post 088), vilket gör skulden högre än kommunens egen nettoupplåning.",
         "Kommuner med befolkning under 5 000 kan ha volatila nyckeltal till följd av "
         "enskilda investeringar eller demografiska händelser.",
     ]

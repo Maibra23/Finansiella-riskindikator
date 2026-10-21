@@ -4,8 +4,8 @@ Why this module exists
 ----------------------
 The composite KRI is a *weighted mean* of five z-scores.  Averaging imperfectly
 correlated standard-normal variables shrinks the spread well below 1σ, in
-practice ≈0.58 in 2010 falling to ≈0.43 in 2024, with the full range never
-leaving ±2.0.  The dashboard originally assumed the composite was itself
+practice ≈0.60 in 2010 falling to ≈0.47 in 2024, with the full range staying
+within ±2.1.  The dashboard originally assumed the composite was itself
 standard normal and hardcoded the standard-normal quartiles (±0.6745) as risk
 boundaries, with axes spanning ±2.5.
 

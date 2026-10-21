@@ -12,7 +12,7 @@ The index draws on established frameworks in public finance analysis:
 - Riksbanken financial stability analysis approaches
 
 ### 1.2 Why a composite index?
-Individual indicators (e.g., debt or unemployment alone) give an incomplete picture. A municipality can have high debt but a strong tax base (e.g., Stockholm), or low debt but a rapidly shrinking population (e.g., rural inland municipalities). By combining five dimensions, the overall risk profile is captured more accurately than any single metric allows.
+Individual indicators (e.g., debt or unemployment alone) give an incomplete picture. A municipality can have high debt but a strong tax base (e.g., Kiruna), or low debt but a rapidly shrinking population (e.g., rural inland municipalities). By combining five dimensions, the overall risk profile is captured more accurately than any single metric allows.
 
 ### 1.3 Analysis period
 **2010 to 2024 (15 years)**
@@ -72,7 +72,10 @@ POST https://api.scb.se/OV0104/v1/doris/sv/ssd/OE/OE0107/OE0107G/BalansKn
 | Code | Label | Meaning |
 |------|-------|---------|
 | Balansraknposter = `089` | Långfristiga skulder | Long-term liabilities (the extracted balance post) |
+| Balansraknposter = `088` | Långfristiga skulder varav utlämnade lån till koncernföretag | Part of 089 lent on to the municipality's own companies (fetched for analysis; not in the index) |
 | ContentsCode = `OE0107E5` | Tkr, löpande priser | Thousands of SEK, current prices |
+
+The pipeline fetches posts `089` and `088` and uses only `089` for `debt_per_capita`. `DataCleaner.clean_balance_sheet` filters on the post code and raises an error if `089` is missing; it never falls back to other posts. See Section 7.4 for the correction history.
 
 **Note:** The table was previously named `BalansKnN` in older SCB documentation. The current active path is `BalansKn`. The old path returns HTTP 404.
 
@@ -86,16 +89,20 @@ debt_per_capita (SEK) = (long_term_liabilities_tkr × 1000) / total_population
 #### Observed data range (2010-2024, all 290 municipalities)
 | Statistic | Value |
 |-----------|-------|
-| Minimum | 24,530 SEK/capita |
-| Maximum | 523,514 SEK/capita (Kiruna, 2024) |
-| Mean | 105,327 SEK/capita |
-| Median | 90,340 SEK/capita |
+| Minimum | -1 SEK/capita (Katrineholm, 2016; SCB reports -30 tkr). 158 municipality-years report exactly 0 |
+| Maximum | 136,303 SEK/capita (Ystad, 2021) |
+| Mean | 23,070 SEK/capita |
+| Median | 17,140 SEK/capita |
+
+Municipal long-term debt has risen steeply over the period: the 2024 cross-sectional mean is 43,210 SEK/capita. Zero values are reported by SCB and are kept as is (see Section 5.1).
 
 #### Fact-check benchmarks
-| Municipality | Year | Expected (SEK/capita) | Source |
+| Check | Expected (SCB) | Observed | Status |
 |---|---|---|---|
-| Stockholm (0180) | 2023 | ~350,000-400,000 | SCB Statistikdatabasen |
-| Stockholm (0180) | 2023 | **363,491** (observed) | OK Within expected range |
+| Stockholm (0180), 2023 | 62,670 SEK/capita (BalansKn, post 089, Kr/invånare) | **62,670** | OK |
+| Kiruna (2584), 2024 | 131,890 SEK/capita | **131,890** | OK |
+| Sum of all 290 municipalities, 2021 | 425.2 billion SEK (SCB "Riket" row, post 089) | **425.2 billion** | OK (automated in `tests/test_debt_data.py`) |
+| All municipality-years 2021 and 2024 vs SCB Kr/invånare | - | 99.1% within 1%, median deviation 0.0007% | OK |
 
 ---
 
@@ -514,14 +521,14 @@ For each municipality and year the analysis records the 5th, 50th and 95th perce
 
 | Measure | Value |
 |---|---|
-| Robust (class holds in ≥90% of draws) | 241 / 290 (83%) |
-| Gränsfall (boundary-fragile) | 49 / 290 (17%) |
-| **Modal class differs from published class** | **1 / 290** |
-| Median 90% rank interval | 26 places |
+| Robust (class holds in ≥90% of draws) | 237 / 290 (82%) |
+| Gränsfall (boundary-fragile) | 53 / 290 (18%) |
+| **Modal class differs from published class** | **4 / 290** |
+| Median 90% rank interval | 25 places |
 
-The third row is the substantive finding: across 290 municipalities, the class that wins the vote differs from the published class exactly once. **The sensitivity analysis corroborates the index rather than undermining it.**
+The third row is the substantive finding: across 290 municipalities, the class that wins the vote differs from the published class only four times, and all four (Älmhult and Kristinehamn at ranks 74-75, Östhammar and Karlskoga at ranks 216-217) sit within two ranks of a quartile boundary. **The sensitivity analysis corroborates the index rather than undermining it.**
 
-Fragility concentrates where theory predicts. The Medel class has the widest median band (35 places) because a mid-table municipality has two boundaries to fall across, while the extremes are pinned by the data rather than by the weights. Kiruna is the clearest individual case: published at rank 67, comfortably inside Hög risk, but with a plausible range of 29-137 and a class that holds in only 52% of draws.
+Fragility concentrates where theory predicts. The Medel class has the widest median band (31.5 places, against 20 for Hög and 19 for Låg) because a mid-table municipality has two boundaries to fall across, while the extremes are pinned by the data rather than by the weights. Nykvarn is the clearest individual case: published at rank 218, just inside Låg risk, with a plausible range of 180-253 and a class that holds in only 54% of draws. Its debt is the fourth highest in Sweden, but its fast population growth and strong tax base pull it the other way, so the balance between those weights decides its class.
 
 #### Sensitivity to the choice of δ
 
@@ -529,25 +536,25 @@ Fragility concentrates where theory predicts. The Medel class has the widest med
 
 | δ | Robust | Gränsfall | Modal ≠ published | Median band |
 |---|---|---|---|---|
-| 0.03 | 259 / 290 | 31 | 1 | 15 places |
-| **0.05** (used) | **241 / 290** | **49** | **1** | **26 places** |
-| 0.10 | 194 / 290 | 96 | 2 | 52 places |
+| 0.03 | 263 / 290 | 27 | 4 | 15 places |
+| **0.05** (used) | **237 / 290** | **53** | **4** | **25 places** |
+| 0.10 | 195 / 290 | 95 | 4 | 49 places |
 
-The number of boundary cases grows with δ, as it must. The conclusion does not: the published class remains the most frequent class for at least 288 of 290 municipalities at all three values.
+The number of boundary cases grows with δ, as it must. The conclusion does not: the published class remains the most frequent class for 286 of 290 municipalities at all three values.
 
 #### Rejected alternative: PCA weights
 
 The obvious data-driven alternative is to let principal component analysis determine the weights. It was tested on all fifteen years and rejected on three grounds.
 
-**1. PC1 loads negatively on debt.** In every year 2010-2024 the first principal component's loading on `z_debt` is negative (-0.08 in 2010, drifting to -0.39 by 2024); unemployment also turns negative in 2020, 2021 and 2024. An index built on PC1 would rank Sweden's most indebted municipalities among its safest. Concretely: the 29 most indebted municipalities sit at the 70th risk percentile under the current weights and at the **19th** under PCA. Eskilstuna, carrying 302,130 SEK per inhabitant, scores +0.92 (Hög risk) today and -1.21 (low risk) under PCA.
+**1. PC1 loads negatively on debt.** The first principal component's loading on `z_debt` is close to zero in 2010-2011 (+0.05 and 0.00) and negative in every year from 2012, reaching -0.30 by 2023-2024; unemployment also turns negative in 2020, 2021 and 2024. An index built on PC1 would rank Sweden's most indebted municipalities among its safest. Concretely (2024): the 29 most indebted municipalities sit at the 71st risk percentile under the current weights and at the **24th** under PCA. Eskilstuna, carrying 100,336 SEK per inhabitant, is rank 9 (Hög risk) today and falls to the 23rd risk percentile, well inside low risk, under PCA.
 
-The reason is visible in the correlation matrix: `z_debt` correlates negatively with dependency (-0.33), population decline (-0.30) and tax base (-0.25). Growing, affluent suburbs borrow to build infrastructure; shrinking rural municipalities carry little debt but weak demographics. **PC1 is not a risk factor, it is an urban-growth versus rural-decline axis.**
+The reason is visible in the correlation matrix: `z_debt` correlates negatively with dependency (-0.20), population decline (-0.26) and tax base (-0.09) in 2024. Growing, affluent suburbs borrow to build infrastructure; shrinking rural municipalities carry little debt but weak demographics. **PC1 is not a risk factor, it is an urban-growth versus rural-decline axis.**
 
-**2. No dominant component.** PC1 carries only 43.9% of variance and PC2 carries 24.2%; two components pass the Kaiser criterion. PCA-based weighting is defensible when one component clearly dominates (conventionally ≳70%). Compressing a genuinely two-dimensional structure onto one axis would discard 56% of the variance as noise.
+**2. No dominant component.** PC1 carries only 40-44% of variance in every year (41.6% in 2024, with PC2 at 24.0%); two components pass the Kaiser criterion in all fifteen years. PCA-based weighting is defensible when one component clearly dominates (conventionally ≳70%). Compressing a genuinely two-dimensional structure onto one axis would discard 58% of the variance as noise.
 
-**3. No comparability across time.** PCA weights are re-estimated per year and move enormously over the period: the debt weight by a factor of 5 (0.041 -> 0.195), the unemployment weight by a factor of 23 (0.186 -> 0.008). A municipality's score would then change because the weights moved, not because its finances did, which destroys the 2010-2024 trend analysis that is the dashboard's core value.
+**3. No comparability across time.** PCA weights are re-estimated per year and move enormously over the period: the debt weight between 0.000 (2011) and 0.153 (2023), the unemployment weight between 0.195 (2010) and 0.002 (2022-2023). A municipality's score would then change because the weights moved, not because its finances did, which destroys the 2010-2024 trend analysis that is the dashboard's core value.
 
-A sign-constrained repair was also tested. Non-negative PC1 (‖w‖₂ = 1, w ≥ 0, projected power iteration) assigns **exactly zero weight to debt in all fifteen years**, and zero to unemployment from 2020 onward. Constraining PCA to be theory-consistent makes it delete the two variables the index exists to measure.
+A sign-constrained repair was also tested. Non-negative PC1 (‖w‖₂ = 1, w ≥ 0, projected power iteration) assigns **zero weight to debt in fourteen of fifteen years** (0.05 in 2010), and zero or near-zero weight (at most 0.013) to unemployment from 2020 onward. Constraining PCA to be theory-consistent makes it delete the two variables the index exists to measure.
 
 One legitimate observation does come out of the PCA: dependency, population growth and tax base intercorrelate at 0.40-0.60 and partly measure a single construct, demographic and tax capacity, which together carries 0.50 of the weight against debt's 0.25. A defensible structural revision would group the indicators into theoretical pillars, not let an eigenvector choose the weights.
 
@@ -579,7 +586,8 @@ Parameters live in `src/config.py` under `SENSITIVITY`. Implementation: `src/sen
 |-------|----------|---------|
 | Danderyd (0162): tax base | > 150% (historically highest in Sweden) | **184% (2023)** OK |
 | Danderyd (0162): unemployment | < 2% | **1.53% (2023)** OK |
-| Stockholm (0180): debt/capita | ~350,000-400,000 SEK | **363,491 SEK (2023)** OK |
+| Stockholm (0180): debt/capita | 62,670 SEK (SCB Kr/invånare, post 089) | **62,670 SEK (2023)** OK |
+| National long-term debt (post 089) | 425.2 billion SEK (SCB, 2021) | **425.2 billion SEK** OK |
 | Stockholm (0180): unemployment | 2-4% | **2.91% (2023)** OK |
 | Dorotea (2425): pop. growth | Strongly negative | **-8.92% (2023)** OK |
 | National dep. ratio mean | ~0.75-0.90 | **0.857** OK |
@@ -593,7 +601,7 @@ Parameters live in `src/config.py` under `SENSITIVITY`. Implementation: `src/sen
 ### 4.3 Data audit results (automated verification)
 A full automated audit was run on `data/processed/kri_base_data.parquet`:
 - **0 failures** across 48 checks
-- **5 warnings**: all attributable to real economic events (COVID-2020 unemployment spike, Linköping 2024 capital investment, small-municipality demographic ageing)
+- **5 warnings**: high-debt/high-tax-base co-occurrence (62 municipality-years), single-year jumps in debt (88 jumps > 3 SD, reflecting large borrowing years and reclassification of loans between short- and long-term), unemployment (COVID-2020 spike) and dependency ratio (small-municipality ageing), and the 2023 national unemployment mean (2.20%) falling below the audit's expected 2.5-3.5% band
 - Zero NaN values in all 5 core variables across all 4,350 rows (290 municipalities × 15 years)
 - No duplicate (municipality, year) pairs
 - All values within expected real-world ranges
@@ -611,6 +619,10 @@ A full automated audit was run on `data/processed/kri_base_data.parquet`:
 **Registration bias in unemployment (N03937):** Persons who are unemployed but not registered with Arbetsförmedlingen are not counted. This particularly affects municipalities with large commuter flows or high self-employment rates. The bias is consistent across municipalities and time, preserving validity for relative comparison.
 
 **Gotland special case:** Region Gotland carries both municipal and regional accounting. SCB estimates that 65% of the balance sheet relates to municipal activities. The pipeline applies a 0.65 adjustment factor to Gotland's debt figures. This is an estimate, not an exact figure.
+
+**Onlending to municipal companies (post 088):** Many municipalities borrow on behalf of their own companies (housing, energy, water) and lend the money onward. This onlending is part of post 089, so it raises the municipality's measured debt although the companies service the loans. Nationally, onlending was 176 of 425 billion SEK in 2021 (41%). In 2024, 59 of 290 municipalities reported onlending, and in 22 of them it exceeded half of long-term debt. Stockholm is the clearest case: 90% of its 2024 long-term debt (67,814 of 75,278 SEK/capita) was onlent, leaving net debt of 7,464 SEK/capita (rank 260 of 290 instead of 42). Stockholm's onlending share rose from 12% in 2023 to 90% in 2024, so year-to-year changes in its debt mostly reflect a change in how the group's borrowing is organised. Gross debt (089) is used in the index; net debt (089 - 088) would be a natural sensitivity check (Spearman correlation between the two in 2024: 0.84).
+
+**Zero and near-zero long-term debt:** SCB reports exactly zero long-term debt for 158 municipality-years and below 1,000 SEK/capita for 366, mostly in 2010-2015. Some municipalities book their loans as short-term (post 098) or borrow mainly through their companies, so a low value does not always mean low borrowing. Katrineholm reports a small negative value (-30 tkr, 2016), which is kept as published.
 
 **High-debt / high-tax-base co-occurrence:** Growth municipalities in the Stockholm commuter belt (e.g., Värmdö, Nykvarn) borrow heavily to fund infrastructure while simultaneously having high per-capita incomes. This produces a counter-intuitive combination of high debt and high tax base. The KRI formula correctly captures both dimensions, but the risk profile of these municipalities is structurally different from distressed rural municipalities with high debt.
 
@@ -687,7 +699,15 @@ Originally planned: compute dependency ratio from Kolada KPI N01961 (working-age
 | Region filter: `vs:RegionKommun07` | `filter: "all", values: ["*"]` | HTTP 400 |
 | ResultKn post `070` | ResultKn post `120` | Wrong variable (070 = nettokostnad, 120 = årets resultat) |
 
-### 7.4 Final Data Quality Summary
+### 7.4 Debt Variable Correction (October 2026)
+
+**Problem:** Earlier versions fetched three BalansKn posts (`050`, `089`, `100`) and tried to keep `089` by matching the label "Långfristiga skulder". SCB returns post *codes*, not labels, so the filter matched nothing and the fallback summed all three posts. In addition, the code comment described `050` as total assets; according to SCB's table metadata `050` is *Diverse kortfristiga fordringar* (total assets is `070`), and `100` is the balance sheet total. The resulting "debt" was mostly the size of each balance sheet: the national sum for 2021 was 1,862 billion SEK against SCB's published 425 billion of long-term debt.
+
+**Fix:** Only posts `089` and `088` are fetched; the cleaner filters on code `089` and raises an error if it is missing. `tests/test_debt_data.py` checks the national total against SCB's published figure, that the municipal sum equals SCB's "Riket" row, and that the processed per-capita values reconstruct the national total.
+
+**Impact (2024):** median debt fell from 150,226 to 37,382 SEK/capita. The KRI ranking is broadly preserved (Spearman rank correlation old vs new 0.966) because balance sheet size per capita is correlated with debt, but 32 of 290 municipalities changed risk class. Stockholm moved from rank 126 (Medel) to 251 (Låg); Kiruna from 67 (Hög) to 196 (Medel). All numbers in this document were regenerated from the corrected data.
+
+### 7.5 Final Data Quality Summary
 
 | Variable | Column | Coverage | Zero missing | Source |
 |----------|--------|----------|--------------|--------|
@@ -733,7 +753,7 @@ data/processed/kri_base_data.parquet
 ### 8.3 Cache files produced
 | File | Contents | Rows |
 |------|----------|------|
-| `data/cache/balance_sheet.parquet` | SCB BalansKn, posts 050/089/100, all municipalities, 2010-2024 | 13,095 |
+| `data/cache/balance_sheet.parquet` | SCB BalansKn, posts 089/088, all regions, 2010-2024 | 8,730 |
 | `data/cache/population.parquet` | SCB BefolkningNy, total population, all municipalities, 2005-2024 | 49,920 |
 | `data/cache/tax_base.parquet` | SCB SkatteKraft, OE0101B0, all municipalities, 2010-2024 | 4,680 |
 | `data/cache/income_statement.parquet` | SCB ResultKn, post 120, all municipalities, 2010-2024 | 4,365 |
@@ -762,13 +782,13 @@ The five input variables are measured in completely different units:
 
 | Variable | Unit | 2024 cross-sectional mean | 2024 cross-sectional std |
 |----------|------|---------------------------|--------------------------|
-| `debt_per_capita` | SEK per person | 167,486 SEK | 73,955 SEK |
+| `debt_per_capita` | SEK per person | 43,210 SEK | 30,298 SEK |
 | `unemployment` | Percent (%) | 2.53% | 0.70% |
 | `dependency_ratio` | Ratio (dimensionless) | 0.91 | 0.12 |
 | `population_growth` | Percent (%) | 0.33% | 3.99% |
 | `tax_base_relative` | % of national avg | 91.73% | 13.23% |
 
-Without normalization, direct addition is meaningless. Adding 167,486 SEK debt to a 2.53% unemployment rate produces a number dominated entirely by the debt variable: not because debt is more important, but simply because it is expressed in a larger-magnitude unit. Normalization removes the unit entirely and expresses each observation in standard deviations from the cross-sectional mean.
+Without normalization, direct addition is meaningless. Adding 43,210 SEK debt to a 2.53% unemployment rate produces a number dominated entirely by the debt variable: not because debt is more important, but simply because it is expressed in a larger-magnitude unit. Normalization removes the unit entirely and expresses each observation in standard deviations from the cross-sectional mean.
 
 #### The formula
 
@@ -847,13 +867,13 @@ Knivsta is a fast-growing commuter municipality north of Uppsala.
 
 | Variable | Raw value | Direction | Z-score (before correction) | Z-score (after correction) |
 |----------|-----------|-----------|------------------------------|----------------------------|
-| `debt_per_capita` | 191,655 SEK | High = risk | +0.327 | +0.327 |
+| `debt_per_capita` | 65,154 SEK | High = risk | +0.724 | +0.724 |
 | `unemployment` | 2.06% | High = risk | -0.674 | -0.674 |
 | `dependency_ratio` | 0.746 | High = risk | -1.379 | -1.379 |
 | `population_growth` | +12.52% | **High = low risk** | -3.057 | **-3.057** (already negative; inversion makes it negative = risk-reducing) |
 | `tax_base_relative` | 109.0% | **High = low risk** | -1.305 | **-1.305** (already negative; inversion makes it negative = risk-reducing) |
 
-Knivsta's fast growth and above-average tax base strongly reduce its KRI score. Its rank is 286 out of 290 (one of the lowest-risk municipalities), despite carrying above-average debt.
+Knivsta's fast growth and above-average tax base strongly reduce its KRI score. Its rank is 279 out of 290 (one of the lowest-risk municipalities), despite carrying above-average debt.
 
 #### Concrete example: Dorotea (2425) in 2024
 
@@ -861,13 +881,13 @@ Dorotea is a remote inland municipality with severe depopulation.
 
 | Variable | Raw value | Direction | Z-score (before correction) | Z-score (after correction) |
 |----------|-----------|-----------|------------------------------|----------------------------|
-| `debt_per_capita` | 195,525 SEK | High = risk | +0.379 | +0.379 |
+| `debt_per_capita` | 55,324 SEK | High = risk | +0.400 | +0.400 |
 | `unemployment` | 2.37% | High = risk | -0.222 | -0.222 |
 | `dependency_ratio` | 1.142 | High = risk | +2.030 | +2.030 |
 | `population_growth` | -10.07% | **High = low risk** | +2.610 | **+2.610** (positive after inversion because low growth = high risk) |
 | `tax_base_relative` | 83.0% | **High = low risk** | +0.660 | **+0.660** (positive because below-average tax base = higher risk) |
 
-Every direction-corrected z-score for Dorotea is positive or zero, meaning each variable pushes the KRI score upward. The result: KRI = +0.936, rank 7 (among the 7 highest-risk municipalities in Sweden in 2024).
+Every direction-corrected z-score for Dorotea except unemployment is positive, so four of the five variables push the KRI score upward. The result: KRI = +0.941, rank 8 (among the 8 highest-risk municipalities in Sweden in 2024).
 
 ---
 
@@ -902,18 +922,18 @@ Each `contribution_k` column is stored in the output dataset, enabling decomposi
 
 #### Full worked example: Stockholm (0180) in 2024
 
-Stockholm has an unusual risk profile, extremely high debt but also an exceptionally strong tax base and young demographic.
+Stockholm has a mixed risk profile: above-average debt and unemployment, but an exceptionally strong tax base and young demographic.
 
 | Variable | Raw | Z-score | Direction correction | Contribution |
 |----------|-----|---------|---------------------|--------------|
-| debt_per_capita | 400,850 SEK | +3.155 | kept | 0.25 x 3.155 = **+0.789** |
-| unemployment | 3.46% | +1.324 | kept | 0.25 x 1.324 = **+0.331** |
+| debt_per_capita | 75,278 SEK | +1.058 | kept | 0.25 × 1.058 = **+0.265** |
+| unemployment | 3.46% | +1.324 | kept | 0.25 × 1.324 = **+0.331** |
 | dependency_ratio | 0.595 | -2.681 | kept | 0.20 × (-2.681) = **-0.536** |
 | population_growth | +2.21% | - | inverted: -0.470 | 0.15 × (-0.470) = **-0.071** |
 | tax_base_relative | 131.0% | - | inverted: -2.968 | 0.15 × (-2.968) = **-0.445** |
-| **KRI total** | | | | **+0.0679** |
+| **KRI total** | | | | **-0.4564** |
 
-**Interpretation:** Stockholm's debt z-score (+3.155) is the single largest contributor to its KRI, its debt per capita of 400,850 SEK is more than 3 standard deviations above the national mean. Yet its KRI score is only +0.068 (rank 126 out of 290, Medel risk) because the very young population (dependency ratio 0.595 vs national mean 0.91) and very strong tax base (131% vs national mean 91.7%) generate large negative contributions that nearly cancel the debt risk. This is economically correct: Stockholm borrows heavily to fund infrastructure for a growing, high-income population, a structurally different risk profile from a municipality that borrows to cover operating deficits.
+**Interpretation:** Debt (+0.265) and unemployment (+0.331) push Stockholm's KRI up; its debt per capita of 75,278 SEK is about one standard deviation above the 2024 mean (rank 42 of 290 on debt). The very young population (dependency ratio 0.595 vs national mean 0.91) and very strong tax base (131% vs 91.7%) generate larger negative contributions, giving a KRI of -0.456 (rank 251 of 290, Låg). Note that 90% of Stockholm's 2024 long-term debt (67,814 SEK/capita) is onlent to its own companies (post 088); its net debt is only 7,464 SEK/capita (see Section 5.1).
 
 #### Full worked example: Malmö (1280) in 2024
 
@@ -921,29 +941,29 @@ Malmö has a different combination, high unemployment is the dominant driver.
 
 | Variable | Raw | Z-score | Direction correction | Contribution |
 |----------|-----|---------|---------------------|--------------|
-| debt_per_capita | 194,506 SEK | +0.365 | kept | 0.25 x 0.365 = **+0.091** |
-| unemployment | 5.49% | +4.225 | kept | 0.25 x 4.225 = **+1.056** |
+| debt_per_capita | 49,250 SEK | +0.199 | kept | 0.25 × 0.199 = **+0.050** |
+| unemployment | 5.49% | +4.225 | kept | 0.25 × 4.225 = **+1.056** |
 | dependency_ratio | 0.614 | -2.519 | kept | 0.20 × (-2.519) = **-0.504** |
 | population_growth | +6.24% | - | inverted: -1.482 | 0.15 × (-1.482) = **-0.222** |
-| tax_base_relative | 88.0% | - | inverted: +0.282 | 0.15 x 0.282 = **+0.042** |
-| **KRI total** | | | | **+0.464** |
+| tax_base_relative | 88.0% | - | inverted: +0.282 | 0.15 × 0.282 = **+0.042** |
+| **KRI total** | | | | **+0.422** |
 
-**Interpretation:** Malmö's unemployment rate of 5.49% is 4.2 standard deviations above the 2024 national mean: the unemployment contribution alone (+1.056) is larger than Dorotea's entire KRI score. The young population and strong population growth partially compensate, but not enough: Malmö ranks 41st highest risk (Hög class) driven almost entirely by unemployment.
+**Interpretation:** Malmö's unemployment rate of 5.49% is 4.2 standard deviations above the 2024 national mean: the unemployment contribution alone (+1.056) is larger than Dorotea's entire KRI score (+0.941). The young population and strong population growth partially compensate, but not enough: Malmö ranks 46th highest risk (Hög class) driven almost entirely by unemployment.
 
-#### Comparison: Kiruna (2584) in 2024, debt-driven high risk
+#### Comparison: Kiruna (2584) in 2024, high debt offset by other strengths
 
-Kiruna carries the highest debt per capita in Sweden in 2024 (523,514 SEK, due to large-scale infrastructure relocation of the entire city center).
+Kiruna has the third-highest long-term debt per capita in Sweden in 2024 (131,890 SEK, after Bjurholm and Ystad), linked to the relocation of the city centre caused by mining subsidence. None of it is onlent to municipal companies (post 088 = 0).
 
 | Variable | Raw | Z-score | Direction correction | Contribution |
 |----------|-----|---------|---------------------|--------------|
-| debt_per_capita | 523,514 SEK | +4.814 | kept | 0.25 x 4.814 = **+1.204** |
+| debt_per_capita | 131,890 SEK | +2.927 | kept | 0.25 × 2.927 = **+0.732** |
 | unemployment | 1.22% | -1.864 | kept | 0.25 × (-1.864) = **-0.466** |
 | dependency_ratio | 0.743 | -1.406 | kept | 0.20 × (-1.406) = **-0.281** |
-| population_growth | -1.93% | - | inverted: +0.567 | 0.15 x 0.567 = **+0.085** |
+| population_growth | -1.93% | - | inverted: +0.567 | 0.15 × 0.567 = **+0.085** |
 | tax_base_relative | 114.0% | - | inverted: -1.683 | 0.15 × (-1.683) = **-0.253** |
-| **KRI total** | | | | **+0.289** |
+| **KRI total** | | | | **-0.183** |
 
-**Interpretation:** Kiruna has the highest single-variable contribution in the entire 2024 dataset (+1.204 from debt alone), but low unemployment and a relatively young working-age population keep the total KRI moderate (rank 67, Hög). The debt figure reflects a government-mandated city relocation, not fiscal distress, illustrating that KRI captures structural *patterns* but is not a substitute for qualitative context.
+**Interpretation:** Debt is by far Kiruna's largest risk contribution (+0.732), but low unemployment, a relatively young working-age population and a strong tax base outweigh it, giving a KRI of -0.183 (rank 196, Medel). The debt reflects the city relocation rather than operating deficits, illustrating that KRI captures structural *patterns* but is not a substitute for qualitative context.
 
 ---
 
@@ -966,13 +986,13 @@ risk_class = "Medel" otherwise       (approximately 144-146 municipalities)
 
 | Threshold | Value |
 |-----------|-------|
-| 25th percentile (Låg/Medel boundary) | -0.2591 |
-| Median | +0.0020 |
-| 75th percentile (Medel/Hög boundary) | +0.2742 |
-| Minimum (lowest risk) | -1.3662 (Danderyd) |
-| Maximum (highest risk) | +1.1719 (Högsby) |
+| 25th percentile (Låg/Medel boundary) | -0.2989 |
+| Median | +0.0054 |
+| 75th percentile (Medel/Hög boundary) | +0.3085 |
+| Minimum (lowest risk) | -1.4866 (Danderyd) |
+| Maximum (highest risk) | +1.2678 (Högsby) |
 
-A municipality with KRI = -0.26 is classified Låg. A municipality with KRI = -0.25 is classified Medel. The boundary is sharp by design.
+A municipality with KRI = -0.30 is classified Låg. A municipality with KRI = -0.29 is classified Medel. The boundary is sharp by design.
 
 #### 2024 classification distribution
 
@@ -1008,15 +1028,15 @@ The rank is computed fresh within each year. A municipality can be rank 15 in 20
 
 | Municipality | KRI score | Rank | Class | Primary driver |
 |---|---|---|---|---|
-| Danderyd (0162) | -1.3662 | 290 | **Låg** | Extremely strong tax base (191% of national avg) |
-| Knivsta (0330) | -1.0171 | 286 | **Låg** | Very fast population growth (+12.5%) |
-| Gotland (0980) | -0.5203 | 259 | **Låg** | Low debt per capita (67,766 SEK), low unemployment |
-| Borlänge (2081) | +0.0922 | 117 | **Medel** | Moderate unemployment, offset by moderate debt |
-| Stockholm (0180) | +0.0679 | 126 | **Medel** | Very high debt offset by young population and strong tax base |
-| Kiruna (2584) | +0.2888 | 67 | **Hög** | Highest debt per capita in Sweden (523,514 SEK) |
-| Malmö (1280) | +0.4637 | 41 | **Hög** | Unemployment 5.49%, 4.2 std above national mean |
-| Landskrona (1282) | +0.6170 | 19 | **Hög** | Unemployment 4.67% (3.1 std above mean) |
-| Dorotea (2425) | +0.9358 | 7 | **Hög** | Severe depopulation (-10.1%), very high dependency ratio |
+| Danderyd (0162) | -1.4866 | 290 | **Låg** | Extremely strong tax base (191% of national avg) |
+| Knivsta (0330) | -0.9177 | 279 | **Låg** | Very fast population growth (+12.5%) |
+| Stockholm (0180) | -0.4564 | 251 | **Låg** | Young population and strong tax base outweigh above-average debt and unemployment |
+| Gotland (0980) | -0.4416 | 247 | **Låg** | Low debt per capita (11,891 SEK after 0.65 adjustment), low unemployment |
+| Kiruna (2584) | -0.1830 | 196 | **Medel** | Third-highest debt per capita (131,890 SEK), offset by low unemployment and strong tax base |
+| Borlänge (2081) | +0.0327 | 139 | **Medel** | Above-average unemployment, offset by low debt |
+| Malmö (1280) | +0.4222 | 46 | **Hög** | Unemployment 5.49%, 4.2 std above national mean |
+| Landskrona (1282) | +0.4776 | 41 | **Hög** | Unemployment 4.67% (3.1 std above mean) |
+| Dorotea (2425) | +0.9409 | 8 | **Hög** | Severe depopulation (-10.1%), very high dependency ratio |
 
 #### What classification does NOT mean
 
@@ -1035,25 +1055,25 @@ A key quality criterion for a composite index is temporal stability: rankings sh
 
 | Period | Correlation |
 |--------|-------------|
-| 2010 -> 2011 | 0.978 |
-| 2011 -> 2012 | 0.979 |
-| 2012 -> 2013 | 0.958 |
+| 2010 -> 2011 | 0.979 |
+| 2011 -> 2012 | 0.977 |
+| 2012 -> 2013 | 0.960 |
 | 2013 -> 2014 | 0.977 |
 | 2014 -> 2015 | 0.977 |
 | 2015 -> 2016 | 0.984 |
-| 2016 -> 2017 | 0.957 |
+| 2016 -> 2017 | 0.966 |
 | 2017 -> 2018 | 0.968 |
 | 2018 -> 2019 | 0.967 |
-| 2019 -> 2020 | 0.963 |
-| 2020 -> 2021 | 0.968 |
-| 2021 -> 2022 | 0.967 |
-| 2022 -> 2023 | 0.964 |
-| 2023 -> 2024 | 0.971 |
-| **Range** | **0.957-0.984** |
+| 2019 -> 2020 | 0.964 |
+| 2020 -> 2021 | 0.964 |
+| 2021 -> 2022 | 0.965 |
+| 2022 -> 2023 | 0.961 |
+| 2023 -> 2024 | 0.972 |
+| **Range** | **0.960 - 0.984** |
 
 All year-over-year correlations exceed 0.95, well above the 0.85 threshold defined in the validation specification. This confirms that the index captures structural properties (which change slowly) rather than cyclical noise (which changes rapidly).
 
-The lowest correlation (0.957, in 2016->2017 and 2012->2013) reflects genuine structural shifts in some municipalities, not index instability.
+The lowest correlation (0.960, in 2012->2013) reflects genuine structural shifts in some municipalities, not index instability.
 
 ---
 

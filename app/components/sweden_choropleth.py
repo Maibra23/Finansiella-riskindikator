@@ -38,7 +38,7 @@ def _build_colormap(scores: pd.Series) -> cm.LinearColormap:
     """Diverging colour scale anchored on the same quartiles that set risk_class.
 
     The composite KRI is a weighted mean of five z-scores, so its spread is well
-    below one standard deviation (≈0.43 in 2024).  A fixed ±2.5 domain therefore
+    below one standard deviation (≈0.47 in 2024).  A fixed ±2.5 domain therefore
     compresses every municipality into the middle of the scale.  Anchoring the
     neutral colour at 0 and the green/red steps at the year's 25th/75th
     percentiles keeps the map readable *and* consistent with the risk classes

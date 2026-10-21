@@ -288,15 +288,21 @@ SWEDISH_LABELS: Dict[str, str] = {
 }
 
 # =============================================================================
-# BALANCE SHEET POST CODES (for SCB BalansKnN table)
+# BALANCE SHEET POST CODES (for SCB BalansKn table, variable "Balansraknposter")
 # =============================================================================
 
-# Balance sheet item codes for extracting specific posts
+# Codes verified against the table metadata:
+# GET https://api.scb.se/OV0104/v1/doris/sv/ssd/OE/OE0107/OE0107G/BalansKn
 BALANCE_SHEET_POSTS = {
-    "long_term_liabilities": "T03K",  # Långfristiga skulder
-    "total_assets": "S1TK",           # Summa tillgångar
-    "equity": "T02E",                 # Eget kapital
+    "long_term_liabilities": "089",   # LÅNGFRISTIGA SKULDER
+    "onlending_to_group": "088",      # Långfristiga skulder varav utlämnade lån till koncernföretag
+    "total_assets": "070",            # TILLGÅNGAR
+    "balance_sheet_total": "100",     # SKULDER, AVSÄTTNINGAR OCH EGET KAPITAL
 }
+
+# Published national total of municipal long-term debt (post 089, sum over all
+# 290 municipalities), SCB BalansKn, billion SEK. Used as a sanity anchor.
+SCB_NATIONAL_LONG_TERM_DEBT_BSEK = {2021: 425.2}
 
 # =============================================================================
 # MUNICIPALITY CODES (All 290 Swedish municipalities)

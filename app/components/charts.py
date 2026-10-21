@@ -50,7 +50,7 @@ _TT_MUTED = "color:#6B7280;font-size:11px;line-height:1.5"
 _TT_FTR = "color:#9CA3AF;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px solid #F3F4F6;line-height:1.45"
 _TT_DIVIDER = "border-top:1px solid #F3F4F6;margin:6px 0"
 
-# Radar frame floor: keeps a stable +-2.5 span for the ~87 % of municipalities
+# Radar frame floor: keeps a stable +-2.5 span for the ~88 % of municipalities
 # whose z-scores fit inside it, so charts stay comparable between selections.
 RADAR_MIN_EXTENT = 2.5
 
@@ -274,7 +274,7 @@ def build_radar(
 
     These axes carry the *individual* z-scores, which really are standardised -
     but their tails are long (z_tax_base reaches -7.5), so a fixed +-2.5 frame
-    silently clipped 37 of 290 municipalities in 2024.  The frame therefore
+    silently clipped 35 of 290 municipalities in 2024.  The frame therefore
     starts at +-RADAR_MIN_EXTENT and grows to fit whatever is plotted.
     """
     plotted = [abs(v) for v in list(municipality_values) + list(national_avg)]

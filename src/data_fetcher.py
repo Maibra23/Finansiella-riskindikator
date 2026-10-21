@@ -20,6 +20,7 @@ import requests
 from src.config import (
     SCB_API_BASE,
     SCB_API_URLS,
+    BALANCE_SHEET_POSTS,
     KOLADA_API_BASE,
     KOLADA_UNEMPLOYMENT_KPIS,
     YEARS,
@@ -373,11 +374,14 @@ class SCBFetcher:
 
         url = SCB_API_URLS["balance_sheet"]
 
-        # Balance sheet posts to fetch (codes from API)
-        # 089 = LÅNGFRISTIGA SKULDER (Long-term debt)
-        # 100 = SKULDER, AVSÄTTNINGAR OCH EGET KAPITAL (Total equity + liabilities)
-        # 050 = SUMMA TILLGÅNGAR (Total assets)
-        balance_post_codes = ["089", "100", "050"]
+        # Balance sheet posts to fetch (codes from SCB BalansKn metadata)
+        # 089 = LÅNGFRISTIGA SKULDER (long-term debt) — the debt variable
+        # 088 = varav utlämnade lån till koncernföretag (part of 089 that is
+        #       lent on to the municipality's own companies)
+        balance_post_codes = [
+            BALANCE_SHEET_POSTS["long_term_liabilities"],
+            BALANCE_SHEET_POSTS["onlending_to_group"],
+        ]
 
         # Build query for balance sheet data
         query = {

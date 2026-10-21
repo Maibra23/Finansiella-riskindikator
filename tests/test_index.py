@@ -318,7 +318,7 @@ class TestReportClaims:
     municipalities rose during the pandemic (impossible, the classes are
     quartiles, so the share is fixed at 25% by construction), and that debt and
     unemployment explain 50% of KRI variance (that is the sum of their weights;
-    the actual variance share is 38%).
+    the actual variance share is about 40%).
     """
 
     def test_risk_class_share_is_fixed_by_construction(self, kri_df):

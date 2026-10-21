@@ -80,7 +80,7 @@ EXPECTED_ROWS = EXPECTED_N_MUNICIPALITIES * EXPECTED_N_YEARS  # 4 350
 
 # Value range specs  (min_ok, max_ok, label)
 VALUE_RANGES = {
-    "debt_per_capita":    (5_000,  700_000, "SEK/capita"),
+    "debt_per_capita":    (-1_000,  200_000, "SEK/capita"),  # long-term debt (post 089); SCB reports 0 for some municipalities
     "unemployment":       (0,       15,      "%"),
     "dependency_ratio":   (0.3,     1.5,     "ratio"),
     "population_growth":  (-20,     30,      "%"),
@@ -347,7 +347,7 @@ section("CHECK 8, Known Benchmarks (spot checks vs SCB/AF published data)")
 benchmarks = [
     # (label, muni_code, year, column, lo, hi)
     ("Stockholm (0180) debt_per_capita 2023",
-     "0180", 2023, "debt_per_capita", 350_000, 400_000),
+     "0180", 2023, "debt_per_capita", 62_000, 63_500),  # SCB Kr/invånare, post 089: 62,670
     ("Stockholm (0180) unemployment 2023",
      "0180", 2023, "unemployment", 2.0, 4.0),
     ("Danderyd (0162) tax_base_relative 2023",

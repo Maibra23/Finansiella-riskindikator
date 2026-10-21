@@ -76,18 +76,20 @@ class DataCleaner:
         """
         logger.info("Cleaning balance sheet data...")
 
-        # Filter for long-term liabilities only
-        # The balanspost column contains Swedish labels, we need to match "Långfristiga skulder"
-        df_debt = df[df["balanspost"].str.contains("Långfristiga skulder", case=False, na=False)].copy()
+        # Filter for long-term liabilities only (post 089).
+        # SCB returns post codes, not labels, in the balanspost column.
+        debt_code = BALANCE_SHEET_POSTS["long_term_liabilities"]
+        df_debt = df[df["balanspost"].astype(str) == debt_code].copy()
 
         if df_debt.empty:
-            # Try matching by code if label matching fails
-            logger.warning("Could not find 'Långfristiga skulder' by name, checking available posts...")
-            logger.info(f"Available balance posts: {df['balanspost'].unique()}")
-            # Fall back to all data if specific post not found
-            df_debt = df.copy()
+            # Never fall back to other posts: summing them silently turns
+            # "debt" into the size of the whole balance sheet.
+            raise ValueError(
+                f"Balance post {debt_code} (Långfristiga skulder) not found. "
+                f"Available posts: {sorted(df['balanspost'].astype(str).unique())}"
+            )
 
-        # Aggregate to get total long-term debt per municipality per year
+        # One row per municipality-year (groupby also drops non-municipal regions)
         df_debt = df_debt.groupby(
             ["municipality_code", "municipality_name", "year"],
             as_index=False
