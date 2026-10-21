@@ -140,7 +140,7 @@ class TestChartsUseTheScale:
         assert "0.6745" not in src, "charts must derive risk zones from RiskScale"
 
     def test_radar_frame_grows_to_fit_outliers(self) -> None:
-        """z_tax_base reaches -7.5; a fixed ±2.5 frame clipped 35/290 in 2024."""
+        """z_tax_base reaches -7.5; a fixed ±2.5 frame clipped 39/290 in 2024."""
         opts = build_radar([0.1, -7.5], [0.0, 0.0], ["A", "B"])
         assert opts["radar"]["indicator"][0]["max"] >= 7.5
 

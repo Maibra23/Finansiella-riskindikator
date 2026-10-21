@@ -1,7 +1,7 @@
 """
 PDF report generator for Kommunal Finansiell Riskindikator.
 
-Generates a 5-page professional PDF report in Swedish using reportlab.
+Generates a professional PDF report in Swedish using reportlab.
 All report content is in Swedish. Code identifiers and comments are in English.
 """
 
@@ -734,7 +734,7 @@ def generate_report(
         Paragraph("Källa", S["table_header"]),
     ]
     var_rows = [
-        ("Långfristig skuld per capita (kr)", "25 %", "Hög = hög risk", "SCB BalansKn, post 089"),
+        ("Låneskuld per capita (kr)", "25 %", "Hög = hög risk", "SCB BalansKn"),
         ("Arbetslöshet (%)", "25 %", "Hög = hög risk", "Arbetsförmedlingen/Kolada"),
         ("Försörjningskvot", "20 %", "Hög = hög risk", "SCB BefolkningNy"),
         ("Befolkningstillväxt 5 år (%)", "15 %", "Negativ = hög risk", "SCB BefolkningNy"),
@@ -794,7 +794,7 @@ def generate_report(
         story.append(Paragraph(
             "Ett alternativ vore att låta principalkomponentanalys bestämma vikterna. Den "
             "metoden prövades och förkastades: första principalkomponenten laddar negativt "
-            "på skuld varje år från 2012 och skulle därmed rangordna de mest skuldsatta "
+            "på skuld varje år från 2011 och skulle därmed rangordna de mest skuldsatta "
             "kommunerna bland de minst riskutsatta. Den förklarar dessutom endast 40-44 % "
             "av variansen, och vikterna skattas per år vilket omöjliggör jämförelser "
             "över tid.",
@@ -813,8 +813,8 @@ def generate_report(
     story.append(Paragraph("Datakvalitet", S["h2"]))
     story.append(Paragraph(
         f"Samtliga 290 kommuner har kompletta tidsserier för analysperioden {yr_min} till {yr_max} "
-        f"({n_obs} observationer, 0 saknade värden). Gotland (0980) flaggas för delad "
-        "redovisning mellan kommunen och regionen; skuld justeras med faktorn 0,65. "
+        f"({n_obs} observationer, 0 saknade värden). Gotland (0980) är både kommun och "
+        "region; SCB redovisar den kommunala delen separat, så ingen justering görs. "
         "Knivsta (0330) bildades 2003 och har begränsad historik.",
         S["body"],
     ))
@@ -922,9 +922,10 @@ def generate_report(
         "omgivande kommuner förbättras ännu mer.",
         "Indexet inkluderar inte externa faktorer som statsbidrag, exploateringsintäkter "
         "eller extraordinära händelser.",
-        "Skuldbegreppet avser långfristiga skulder (SCB BalansKn, post 089) och fångar inte "
-        "kortfristiga likviditetsrisker. Det omfattar även lån som kommunen vidareutlånat till "
-        "egna bolag (post 088), vilket gör skulden högre än kommunens egen nettoupplåning.",
+        "Skuldbegreppet avser kommunens samlade låneskuld, lång- och kortfristig "
+        "(SCB BalansKn), och fångar inte likviditet eller borgensåtaganden. Det omfattar "
+        "även lån som kommunen vidareutlånat till egna bolag, eftersom SCB:s uppgift om "
+        "vidareutlåning inte redovisas enhetligt mellan kommuner och år.",
         "Kommuner med befolkning under 5 000 kan ha volatila nyckeltal till följd av "
         "enskilda investeringar eller demografiska händelser.",
     ]

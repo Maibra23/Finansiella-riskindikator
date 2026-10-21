@@ -80,7 +80,7 @@ EXPECTED_ROWS = EXPECTED_N_MUNICIPALITIES * EXPECTED_N_YEARS  # 4 350
 
 # Value range specs  (min_ok, max_ok, label)
 VALUE_RANGES = {
-    "debt_per_capita":    (-1_000,  200_000, "SEK/capita"),  # long-term debt (post 089); SCB reports 0 for some municipalities
+    "debt_per_capita":    (-1_000,  200_000, "SEK/capita"),  # total borrowing; SCB reports 0 for debt-free municipalities
     "unemployment":       (0,       15,      "%"),
     "dependency_ratio":   (0.3,     1.5,     "ratio"),
     "population_growth":  (-20,     30,      "%"),
@@ -347,7 +347,7 @@ section("CHECK 8, Known Benchmarks (spot checks vs SCB/AF published data)")
 benchmarks = [
     # (label, muni_code, year, column, lo, hi)
     ("Stockholm (0180) debt_per_capita 2023",
-     "0180", 2023, "debt_per_capita", 62_000, 63_500),  # SCB Kr/invånare, post 089: 62,670
+     "0180", 2023, "debt_per_capita", 79_500, 80_500),  # SCB BalansKn borrowing posts: 80,000
     ("Stockholm (0180) unemployment 2023",
      "0180", 2023, "unemployment", 2.0, 4.0),
     ("Danderyd (0162) tax_base_relative 2023",
@@ -368,13 +368,23 @@ for label, code, year, col, lo, hi in benchmarks:
            PASS if ok else WARN,
            f"Value = {val:,.4g}  |  Expected range [{lo:,}: {hi:,}]")
 
-# National mean unemployment 2023
-if "unemployment" in df.columns:
-    nat_u_2023 = float(df[df["year"] == 2023]["unemployment"].mean())
-    ok = 2.5 <= nat_u_2023 <= 3.5
-    record(8, "National mean unemployment 2023",
+# National unemployment 2023. N03937 is a rate per municipality, so the national
+# rate is the mean weighted by population aged 18-65, not the plain mean of 290
+# municipalities (2.20 %, pulled down by small municipalities with low rates).
+# Reference: Kolada N03937, municipality 0000 (Riket), 2023 = 2.542 %.
+KOLADA_RIKET_UNEMPLOYMENT_2023 = 2.542
+if "unemployment" in df.columns and os.path.exists(CACHE_FILES["population_by_age"]):
+    pa = pd.read_parquet(CACHE_FILES["population_by_age"])
+    age = pd.to_numeric(pa["age"].astype(str).str.extract(r"(\d+)")[0], errors="coerce")
+    w = (pa[(pa["year"] == 2023) & age.between(18, 65)]
+         .groupby("municipality_code")["value"].sum())
+    u = df[df["year"] == 2023].set_index("municipality_code")["unemployment"]
+    nat_u_2023 = float((u * w.reindex(u.index)).sum() / w.reindex(u.index).sum())
+    ok = abs(nat_u_2023 - KOLADA_RIKET_UNEMPLOYMENT_2023) <= 0.05
+    record(8, "National unemployment 2023 (population-weighted)",
            PASS if ok else WARN,
-           f"Computed mean = {nat_u_2023:.3f}%  |  Expected 2.5-3.5%")
+           f"Weighted mean = {nat_u_2023:.3f}%  |  Kolada Riket = "
+           f"{KOLADA_RIKET_UNEMPLOYMENT_2023:.3f}% (tolerance 0.05 pp)")
 
 # National mean dependency_ratio (all years)
 if "dependency_ratio" in df.columns:

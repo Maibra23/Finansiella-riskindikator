@@ -13,7 +13,7 @@ from typing import Dict, List
 # =============================================================================
 
 SCB_API_BASE = "https://api.scb.se/OV0104/v1/doris/sv/ssd/"
-KOLADA_API_BASE = "https://api.kolada.se/v2/"
+KOLADA_API_BASE = "https://api.kolada.se/v3/"  # v2 retired (HTTP 410)
 
 # =============================================================================
 # SCB API PATHS (relative to SCB_API_BASE)
@@ -294,15 +294,40 @@ SWEDISH_LABELS: Dict[str, str] = {
 # Codes verified against the table metadata:
 # GET https://api.scb.se/OV0104/v1/doris/sv/ssd/OE/OE0107/OE0107G/BalansKn
 BALANCE_SHEET_POSTS = {
-    "long_term_liabilities": "089",   # LÅNGFRISTIGA SKULDER
+    "long_term_liabilities": "089",   # LÅNGFRISTIGA SKULDER (reference only)
     "onlending_to_group": "088",      # Långfristiga skulder varav utlämnade lån till koncernföretag
+    "onlending_short_term": "135",    # Kortfristig del av långfristig skuld för vidareutlåning (from 2019)
     "total_assets": "070",            # TILLGÅNGAR
+    "equity": "075",                  # EGET KAPITAL VID ÅRETS SLUT
     "balance_sheet_total": "100",     # SKULDER, AVSÄTTNINGAR OCH EGET KAPITAL
 }
 
-# Published national total of municipal long-term debt (post 089, sum over all
-# 290 municipalities), SCB BalansKn, billion SEK. Used as a sanity anchor.
-SCB_NATIONAL_LONG_TERM_DEBT_BSEK = {2021: 425.2}
+# The debt variable is the municipality's total borrowing (låneskuld): every
+# interest-bearing loan, long- or short-term. It deliberately differs from post
+# 089 in two ways, both verified against the SCB series 2010-2024:
+#   * post 087 (deferred connection fees and investment grants) is excluded: it
+#     is not borrowing, and it only enters 089 from 2013;
+#   * post 090 (short-term debt to credit institutions) is included, so loans
+#     due within twelve months, reclassified as short-term from 2016, still count.
+# Bonds got their own post (136) in 2020; before that they sat in 081/084.
+# Onlending (088) is NOT subtracted: SCB's 088 is reported inconsistently across
+# municipalities and years (see docs/methodology.md, Section 7.4).
+# Equals Kolada N03145 + onlending (088 + 135) + bonds (136) exactly.
+BORROWING_POSTS = {
+    "081": "Långfristiga lån i banker och kreditinstitut, svenska kronor",
+    "082": "Långfristiga lån i banker och kreditinstitut, utländsk valuta",
+    "083": "Långfristiga skulder till koncernföretag",
+    "084": "Kontokredit, långfristig del, övriga långfristiga skulder",
+    "085": "Långfristig leasingskuld",
+    "136": "Långfristiga obligations- och förlagslån (separate post from 2020)",
+    "090": "Kortfristiga skulder till kreditinstitut och kunder",
+}
+# Posts SCB only publishes from a given year; earlier years count as zero.
+BORROWING_POSTS_FIRST_YEAR = {"136": 2020}
+
+# National total borrowing (sum of BORROWING_POSTS over the 290 municipalities),
+# SCB BalansKn, billion SEK. Used as a sanity anchor in tests.
+SCB_NATIONAL_BORROWING_BSEK = {2021: 485.8}
 
 # =============================================================================
 # MUNICIPALITY CODES (All 290 Swedish municipalities)
@@ -621,8 +646,8 @@ SPECIAL_CASES = {
     "0980": {
         "name": "Gotland",
         "note": "Region Gotland has both municipal and regional responsibilities. "
-                "SCB estimates 65% relates to municipal activities.",
-        "adjustment_factor": 0.65,
+                "SCB reports the municipal part in the municipal tables and the "
+                "regional part in the regional tables, so no adjustment is applied.",
     },
     "0330": {
         "name": "Knivsta",

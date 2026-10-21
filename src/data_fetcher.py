@@ -20,7 +20,6 @@ import requests
 from src.config import (
     SCB_API_BASE,
     SCB_API_URLS,
-    BALANCE_SHEET_POSTS,
     KOLADA_API_BASE,
     KOLADA_UNEMPLOYMENT_KPIS,
     YEARS,
@@ -36,6 +35,7 @@ from src.config import (
     REQUEST_DELAY,
     CACHE_EXPIRY_DAYS,
     BALANCE_SHEET_POSTS,
+    BORROWING_POSTS,
     MUNICIPALITIES,
 )
 
@@ -374,13 +374,14 @@ class SCBFetcher:
 
         url = SCB_API_URLS["balance_sheet"]
 
-        # Balance sheet posts to fetch (codes from SCB BalansKn metadata)
-        # 089 = LÅNGFRISTIGA SKULDER (long-term debt) — the debt variable
-        # 088 = varav utlämnade lån till koncernföretag (part of 089 that is
-        #       lent on to the municipality's own companies)
+        # Balance sheet posts to fetch (codes from SCB BalansKn metadata):
+        # the borrowing components that make up the debt variable, plus
+        # 089 (long-term liabilities) and 088/135 (onlending) for reference.
         balance_post_codes = [
+            *BORROWING_POSTS,
             BALANCE_SHEET_POSTS["long_term_liabilities"],
             BALANCE_SHEET_POSTS["onlending_to_group"],
+            BALANCE_SHEET_POSTS["onlending_short_term"],
         ]
 
         # Build query for balance sheet data
@@ -1103,7 +1104,7 @@ class KoladaFetcher:
         Fetch data for a specific KPI for all municipalities with pagination.
 
         Kolada API returns max 5000 records per page. This method follows
-        next_page links to retrieve all data.
+        next_url links to retrieve all data.
 
         Args:
             kpi_id: Kolada KPI identifier
@@ -1131,7 +1132,8 @@ class KoladaFetcher:
             values = data.get("values", [])
             all_values.extend(values)
 
-            next_page = data.get("next_page", "")
+            # v3 paginates with "next_url"; v2 (retired, HTTP 410) used "next_page"
+            next_page = data.get("next_url") or data.get("next_page")
             if next_page:
                 url = next_page
                 page += 1

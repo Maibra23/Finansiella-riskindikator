@@ -22,7 +22,8 @@ from src.config import (
     END_YEAR,
     YEARS,
     PROCESSED_DIR,
-    BALANCE_SHEET_POSTS,
+    BORROWING_POSTS,
+    BORROWING_POSTS_FIRST_YEAR,
 )
 
 # Configure logging
@@ -65,7 +66,8 @@ class DataCleaner:
         """
         Clean balance sheet data and compute debt per capita.
 
-        Extracts long-term liabilities and converts from tkr to kr per capita.
+        Debt is the municipality's total borrowing (see config.BORROWING_POSTS),
+        converted from tkr to kr per capita.
 
         Args:
             df: Raw balance sheet DataFrame from SCB
@@ -76,24 +78,32 @@ class DataCleaner:
         """
         logger.info("Cleaning balance sheet data...")
 
-        # Filter for long-term liabilities only (post 089).
         # SCB returns post codes, not labels, in the balanspost column.
-        debt_code = BALANCE_SHEET_POSTS["long_term_liabilities"]
-        df_debt = df[df["balanspost"].astype(str) == debt_code].copy()
-
-        if df_debt.empty:
-            # Never fall back to other posts: summing them silently turns
-            # "debt" into the size of the whole balance sheet.
+        posts = df.assign(balanspost=df["balanspost"].astype(str))
+        posts = posts[posts["balanspost"].isin(BORROWING_POSTS) & posts["municipality_name"].notna()]
+        missing_posts = sorted(set(BORROWING_POSTS) - set(posts["balanspost"]))
+        if missing_posts:
+            # Never fall back to other posts: summing the wrong posts silently
+            # turned "debt" into the size of the whole balance sheet once before.
             raise ValueError(
-                f"Balance post {debt_code} (Långfristiga skulder) not found. "
+                f"Borrowing posts {missing_posts} not found. "
                 f"Available posts: {sorted(df['balanspost'].astype(str).unique())}"
             )
 
-        # One row per municipality-year (groupby also drops non-municipal regions)
-        df_debt = df_debt.groupby(
-            ["municipality_code", "municipality_name", "year"],
-            as_index=False
-        )["value"].sum()
+        wide = (
+            posts.groupby(["municipality_code", "municipality_name", "year", "balanspost"])["value"]
+            .sum(min_count=1)  # keep NaN as NaN so gaps are detected below
+            .unstack("balanspost")
+        )
+        # A post SCB had not yet introduced counts as zero; any other gap is an error.
+        years = wide.index.get_level_values("year")
+        for code, first_year in BORROWING_POSTS_FIRST_YEAR.items():
+            wide.loc[years < first_year, code] = wide.loc[years < first_year, code].fillna(0)
+        gaps = wide[list(BORROWING_POSTS)].isna()
+        if gaps.any().any():
+            raise ValueError(f"Missing borrowing values:\n{gaps.stack()[gaps.stack()].head(10)}")
+
+        df_debt = wide[list(BORROWING_POSTS)].sum(axis=1).rename("value").reset_index()
 
         # Rename value column
         df_debt = df_debt.rename(columns={"value": "debt_tkr"})
@@ -110,13 +120,6 @@ class DataCleaner:
 
         # Compute debt per capita (tkr * 1000 = kr, then divide by population)
         df_debt["debt_per_capita"] = (df_debt["debt_tkr"] * 1000) / df_debt["total_population"]
-
-        # Handle Gotland special case (65% municipal share)
-        gotland_mask = df_debt["municipality_code"] == "0980"
-        if gotland_mask.any():
-            adjustment = SPECIAL_CASES["0980"]["adjustment_factor"]
-            df_debt.loc[gotland_mask, "debt_per_capita"] *= adjustment
-            logger.info(f"Applied Gotland adjustment factor ({adjustment}) to debt")
 
         # Select final columns
         result = df_debt[[

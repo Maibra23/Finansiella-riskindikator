@@ -355,7 +355,6 @@ Returns a single `div.lp-section-title` (gold uppercase). Used internally by `re
 | `build_radar` | Municipality z-scores vs national average |
 | `build_line_trend` | Multi-series line over years |
 | `build_grouped_bars_comparison` | Grouped bars for multiple kommuner |
-| `build_sweden_geo_scatter` | ECharts geo scatter for Sweden (available for map-like views; primary map UX is Folium choropleth) |
 
 Tooltip bodies use inline CSS constants (`_TT_*` in `charts.py`) for consistent Swedish tooltip HTML in formatters.
 

@@ -121,11 +121,11 @@ st.markdown(
 sources_df = pd.DataFrame(
     [
         {
-            "Variabel": "Skuld per capita",
+            "Variabel": "Låneskuld per capita",
             "Kolumnnamn": "debt_per_capita",
             "Vikt": "25 %",
             "Källsystem": "SCB PxWeb API",
-            "Serie": "BalansKn, post 089",
+            "Serie": "BalansKn, poster 081-085, 090, 136",
             "Täckning": "290 kommuner × 15 år",
         },
         {
@@ -234,10 +234,10 @@ with st.expander("API-dokumentation: hur data hämtas från respektive källa", 
         )
         st.code(
             """# Sök nyckeltal
-GET /v2/kpi?title=arbetslöshet
+GET /v3/kpi?title=arbetslöshet
 
 # Hämta data för alla år
-GET /v2/data/kpi/N03937/year/2010,2011,...,2024""",
+GET /v3/data/kpi/N03937/year/2010,2011,...,2024""",
             language="bash",
         )
         st.markdown(
@@ -302,12 +302,12 @@ st.markdown("**Hur känsligt är resultatet för valet av ±-intervall?**")
 st.dataframe(
     pd.DataFrame(
         [
-            {"Viktvariation": "±0,03", "Robusta": "263 av 290", "Gränsfall": 27,
-             "Modal ≠ publicerad": 4, "Medianintervall": "15 platser"},
-            {"Viktvariation": "±0,05 (används)", "Robusta": "237 av 290", "Gränsfall": 53,
-             "Modal ≠ publicerad": 4, "Medianintervall": "25 platser"},
-            {"Viktvariation": "±0,10", "Robusta": "195 av 290", "Gränsfall": 95,
-             "Modal ≠ publicerad": 4, "Medianintervall": "49 platser"},
+            {"Viktvariation": "±0,03", "Robusta": "254 av 290", "Gränsfall": 36,
+             "Modal ≠ publicerad": 2, "Medianintervall": "14 platser"},
+            {"Viktvariation": "±0,05 (används)", "Robusta": "235 av 290", "Gränsfall": 55,
+             "Modal ≠ publicerad": 2, "Medianintervall": "24 platser"},
+            {"Viktvariation": "±0,10", "Robusta": "198 av 290", "Gränsfall": 92,
+             "Modal ≠ publicerad": 3, "Medianintervall": "49 platser"},
         ]
     ),
     use_container_width=True,
@@ -315,7 +315,7 @@ st.dataframe(
 )
 st.caption(
     "Antalet gränsfall växer med intervallet, som väntat, men slutsatsen gör det inte: "
-    "den publicerade klassen är den vanligaste klassen för 286 av 290 kommuner "
+    "den publicerade klassen är den vanligaste klassen för minst 287 av 290 kommuner "
     "vid samtliga tre intervall (2024)."
 )
 
@@ -327,11 +327,11 @@ Det naturliga alternativet är att låta data bestämma vikterna genom
 av tre skäl:
 
 1. **Fel tecken på skuld.** Första principalkomponenten laddar *negativt* på skuld
-   varje år från 2012 (ned till -0,30) och nära noll 2010 - 2011. Ett index byggt på
-   den skulle rangordna Sveriges mest skuldsatta kommuner bland de minst riskutsatta:
-   de 29 mest skuldsatta kommunerna hamnar i genomsnitt på 24:e i stället för 71:a
-   riskpercentilen. Eskilstuna, med 100 000 kr i skuld per invånare, skulle gå från
-   Hög risk (rang 9) till klart under rikssnittet. PC1 mäter inte risk utan en tillväxt-tillbakagång-axel: växande,
+   varje år från 2011 (ned till -0,32) och nära noll 2010. Ett index byggt på den
+   skulle rangordna Sveriges mest skuldsatta kommuner bland de minst riskutsatta: de
+   29 mest skuldsatta kommunerna hamnar i genomsnitt på 20:e i stället för 69:e
+   riskpercentilen. Eskilstuna, med 121 000 kr i låneskuld per invånare, skulle gå
+   från Hög risk (rang 6) till klart under rikssnittet. PC1 mäter inte risk utan en tillväxt-tillbakagång-axel: växande,
    välbeställda kommuner lånar till infrastruktur, medan krympande kommuner har
    låg skuld men svag demografi.
 
@@ -340,8 +340,8 @@ av tre skäl:
    dominerar, vilket den inte gör här.
 
 3. **Ingen jämförbarhet över tid.** PCA-vikterna skattas per år och rör sig kraftigt
-   - skuldvikten varierar mellan 0 och 0,15 och arbetslöshetsvikten mellan 0,002 och
-   0,20 över perioden. En kommuns poäng skulle då förändras för att vikterna rört sig, inte
+   - skuldvikten varierar mellan 0,006 och 0,16 och arbetslöshetsvikten mellan 0,009
+   och 0,20 över perioden. En kommuns poäng skulle då förändras för att vikterna rört sig, inte
    för att ekonomin gjort det, vilket omöjliggör tidsserien.
 
 En teckenbegränsad variant (icke-negativ PC1) prövades också. Den tilldelar skuld
