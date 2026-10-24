@@ -165,7 +165,7 @@ sources_df = pd.DataFrame(
 
 st.dataframe(
     sources_df,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "Variabel": st.column_config.TextColumn("Variabel", width="medium"),
@@ -310,7 +310,7 @@ st.dataframe(
              "Modal ≠ publicerad": 3, "Medianintervall": "49 platser"},
         ]
     ),
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 st.caption(
@@ -405,6 +405,6 @@ license_df = pd.DataFrame(
 
 st.dataframe(
     license_df,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )

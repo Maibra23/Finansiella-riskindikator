@@ -407,7 +407,7 @@ try:
                 "Rang": "{:.0f}",
             })
         )
-        st.dataframe(peer_styled, use_container_width=True, hide_index=True)
+        st.dataframe(peer_styled, width="stretch", hide_index=True)
     else:
         st.info("Peer-data saknas för vald kombination.")
 except Exception as e:
@@ -464,7 +464,7 @@ history_styled = (
         "År": "{:.0f}",
     })
 )
-st.dataframe(history_styled, use_container_width=True, hide_index=True)
+st.dataframe(history_styled, width="stretch", hide_index=True)
 
 csv_data = display_history.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
 
