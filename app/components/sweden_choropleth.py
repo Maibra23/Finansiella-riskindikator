@@ -14,7 +14,7 @@ import branca.colormap as cm
 import folium
 import pandas as pd
 import streamlit as st
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 
 from src.config import DIVERGING_SCALE, MAP_TILES, MUNICIPALITIES
 
@@ -198,4 +198,5 @@ def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> Non
     m = build_choropleth_map(kri_df, year)
     if m is None:
         return
-    folium_static(m, width=None, height=height)
+    # returned_objects=[]: the map is display-only, so panning or zooming does not rerun the page
+    st_folium(m, width=None, height=height, returned_objects=[], key=f"choropleth_{year}")
