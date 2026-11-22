@@ -281,10 +281,11 @@ class TestPagesDegradeWithoutTheLayer:
         "page", ["riksoversikt.py", "kommunanalys.py", "kallor.py"]
     )
     def test_every_consumer_is_guarded(self, page: str) -> None:
-        src = (Path(__file__).resolve().parent.parent / "app" / "pages" / page).read_text(
+        src = (Path(__file__).resolve().parent.parent / "app" / "views" / page).read_text(
             encoding="utf-8"
         )
-        assert "_load_sensitivity" in src, f"{page} does not load the layer"
+        # Pages load the layer through the shared app.data.load_sensitivity (T03).
+        assert "load_sensitivity" in src, f"{page} does not load the layer"
         assert "sens_df is not None" in src or "sens_row is not None" in src, (
             f"{page} uses the layer without a None guard"
         )
@@ -292,7 +293,7 @@ class TestPagesDegradeWithoutTheLayer:
     def test_table_html_omits_the_column_without_data(self) -> None:
         """The header must disappear too, not render above empty cells."""
         src = (
-            Path(__file__).resolve().parent.parent / "app" / "pages" / "riksoversikt.py"
+            Path(__file__).resolve().parent.parent / "app" / "views" / "riksoversikt.py"
         ).read_text(encoding="utf-8")
         assert 'show_uncertainty = "is_robust" in df.columns' in src
         assert "if show_uncertainty:" in src

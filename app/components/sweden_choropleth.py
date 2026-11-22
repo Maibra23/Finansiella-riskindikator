@@ -16,7 +16,8 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 
-from src.config import DIVERGING_SCALE, MAP_TILES, MUNICIPALITIES
+from app.formatting import fmt_count_of, fmt_decimal, fmt_int, fmt_signed
+from src.config import COLORS, DIVERGING_SCALE, MAP_TILES, MUNICIPALITIES
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 GEOJSON_PATH = PROJECT_ROOT / "data" / "geo" / "kommuner.geojson"
@@ -64,10 +65,24 @@ def _build_colormap(scores: pd.Series) -> cm.LinearColormap:
     )
 
 
-def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
-    """Build the Folium map for a given year, or None when map data is missing."""
+OUTSIDE_FILTER = "Ej i urvalet"
+
+
+def build_choropleth_map(
+    kri_df: pd.DataFrame,
+    year: int,
+    include_codes: set[str] | None = None,
+) -> folium.Map | None:
+    """Build the Folium map for a given year, or None when map data is missing.
+
+    The colour scale is always built from the *whole* year, so its breakpoints
+    stay identical to the risk classes. With ``include_codes`` (the risk filter),
+    municipalities outside the set are drawn in light grey and their tooltip says
+    "Ej i urvalet" instead of being painted as if their KRI were 0.
+    """
     sub = kri_df[kri_df["year"] == year].copy()
     sub["municipality_code"] = sub["municipality_code"].astype(str).str.zfill(4)
+    n_total = len(sub)
 
     # Build per-code lookup with pre-formatted display strings
     data_dict: dict[str, dict] = {}
@@ -85,12 +100,12 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
             "rank": rnk,
             "risk_class": risk,
             # Pre-formatted strings for tooltip display
-            "kri_fmt": f"{kri:+.2f}".replace(".", ","),
-            "rank_fmt": f"{rnk} / 290",
-            "debt_fmt": f"{int(debt):,}".replace(",", "\u202f") + " kr",
-            "unemp_fmt": f"{unemp:.1f}".replace(".", ",") + " %",
-            "pop_fmt": (("+" if pop >= 0 else "") + f"{pop:.1f}").replace(".", ",") + " %",
-            "tax_fmt": f"{tax:.1f}".replace(".", ",") + " %",
+            "kri_fmt": fmt_signed(kri, 2),
+            "rank_fmt": fmt_count_of(rnk, n_total),
+            "debt_fmt": f"{fmt_int(debt)} kr",
+            "unemp_fmt": f"{fmt_decimal(unemp, 1)} %",
+            "pop_fmt": f"{fmt_signed(pop, 1)} %",
+            "tax_fmt": f"{fmt_decimal(tax, 1)} %",
         }
 
     # Deep-copy GeoJSON so cached original stays clean
@@ -104,7 +119,11 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
         d = data_dict.get(code, {})
         feat["properties"]["KRI Poäng"] = d.get("kri_fmt", "Saknas")
         feat["properties"]["Rang"] = d.get("rank_fmt", "Saknas")
-        feat["properties"]["Riskklass"] = d.get("risk_class", "Saknas")
+        excluded = include_codes is not None and code not in include_codes
+        feat["properties"]["Riskklass"] = (
+            OUTSIDE_FILTER if excluded else d.get("risk_class", "Saknas")
+        )
+        feat["properties"]["_excluded"] = excluded
         feat["properties"]["Skuld/capita"] = d.get("debt_fmt", "Saknas")
         feat["properties"]["Arbetslöshet"] = d.get("unemp_fmt", "Saknas")
         feat["properties"]["Befolkningstillväxt"] = d.get("pop_fmt", "Saknas")
@@ -141,6 +160,13 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
     ).add_to(m)
 
     def _style(feature: dict) -> dict:
+        if feature["properties"].get("_excluded"):
+            return {
+                "fillColor": COLORS["border"],
+                "color": "#CCCCCC",
+                "weight": 0.5,
+                "fillOpacity": 0.35,
+            }
         kri_val = feature["properties"].get("_kri", 0.0)
         return {
             "fillColor": colormap(kri_val),
@@ -151,21 +177,21 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
 
     def _highlight(feature: dict) -> dict:
         return {
-            "color": "#1A1A2E",
+            "color": COLORS["text_primary"],
             "weight": 2.0,
             "fillOpacity": 0.95,
         }
 
     tooltip_css = (
-        "font-family: 'Source Sans Pro', sans-serif;"
+        "font-family: 'Source Sans 3', 'Source Sans Pro', sans-serif;"
         "font-size: 13px;"
         "line-height: 1.5;"
-        "background: #ffffff;"
-        "border: 1px solid #E5E7EB;"
+        f"background: {COLORS['card_bg']};"
+        f"border: 1px solid {COLORS['border']};"
         "border-radius: 6px;"
         "padding: 12px 14px;"
         "box-shadow: 0 4px 16px rgba(0,0,0,0.10);"
-        "color: #1A1A2E;"
+        f"color: {COLORS['text_primary']};"
     )
 
     folium.GeoJson(
@@ -180,7 +206,7 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
             ],
             aliases=[
                 "<b>Kommun</b>", "<b>Riskklass</b>", "KRI Poäng", "Rang",
-                "Skuld per capita", "Arbetslöshet",
+                "Skuld per capita", "Öppet arbetslösa (% av 18-65 år)",
                 "Befolkningstillväxt (5 år)", "Skattekraft (% rikssnitt)",
             ],
             sticky=True,
@@ -193,10 +219,19 @@ def build_choropleth_map(kri_df: pd.DataFrame, year: int) -> folium.Map | None:
     return m
 
 
-def render_choropleth(kri_df: pd.DataFrame, year: int, height: int = 480) -> None:
+def render_choropleth(
+    kri_df: pd.DataFrame,
+    year: int,
+    height: int = 480,
+    include_codes: set[str] | None = None,
+) -> None:
     """Render a full polygon choropleth of Sweden's 290 municipalities."""
-    m = build_choropleth_map(kri_df, year)
+    m = build_choropleth_map(kri_df, year, include_codes=include_codes)
     if m is None:
         return
+    # The key carries the filter so the map redraws when the selection changes.
+    filter_key = "alla" if include_codes is None else str(abs(hash(frozenset(include_codes))))
     # returned_objects=[]: the map is display-only, so panning or zooming does not rerun the page
-    st_folium(m, width=None, height=height, returned_objects=[], key=f"choropleth_{year}")
+    st_folium(
+        m, width=None, height=height, returned_objects=[], key=f"choropleth_{year}_{filter_key}"
+    )

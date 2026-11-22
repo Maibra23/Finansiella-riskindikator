@@ -20,7 +20,7 @@ Individual indicators (e.g., debt or unemployment alone) give an incomplete pict
 Rationale:
 - All five core variables have complete time series from 2010 across all 290 municipalities
 - The period covers a full business cycle: post-2008/2009 recovery, growth years, pandemic shock 2020-2021, inflation shock 2022-2023
-- Arbetsförmedlingen unemployment series (Kolada N03937) is consistent from 2010; no methodology breaks occur within this period
+- Arbetsförmedlingen unemployment series (Kolada N03937) is available for every year from 2010. One definition change: up to 2022 the KPI covered ages 18-64, from 2023 ages 18-65 (per Kolada's KPI description). Because KRI z-scores are computed within each year, the change shifts all municipalities together and does not affect ranks or classes; raw-level trend charts may show a small step at 2023
 - SCB's municipal accounting summary table series (BalansKn, ResultKn) has consistent definitions from 1998 onward
 
 ---
@@ -32,7 +32,7 @@ Rationale:
 | Variable | Column name | Weight | Source system | Source series | Coverage |
 |----------|-------------|--------|---------------|---------------|----------|
 | Borrowing per capita | `debt_per_capita` | 0.25 | SCB PxWeb API | BalansKn, posts 081-085, 090, 136 | 290 munis × 15 yrs |
-| Unemployment rate | `unemployment` | 0.25 | Kolada API -> Arbetsförmedlingen | KPI N03937 | 290 munis × 15 yrs |
+| Open unemployment (share of residents 18-65, not of the labour force) | `unemployment` | 0.25 | Kolada API -> Arbetsförmedlingen | KPI N03937 | 290 munis × 15 yrs |
 | Dependency ratio | `dependency_ratio` | 0.20 | SCB PxWeb API | BefolkningNy, ages 0-100+ | 290 munis × 15 yrs |
 | Population growth (5-yr) | `population_growth` | 0.15 | SCB PxWeb API | BefolkningNy, "tot" age | 290 munis × 15 yrs |
 | Tax base strength | `tax_base_relative` | 0.15 | SCB PxWeb API | SkatteKraft, OE0101B0 | 290 munis × 15 yrs |
@@ -161,7 +161,8 @@ Kolada returns paginated JSON (max 5,000 records per page). All municipalities a
 
 #### Definition detail
 - **Numerator:** Number of persons aged 18-65 registered as openly unemployed with Arbetsförmedlingen, monthly average over the calendar year
-- **Denominator:** Total population aged 18-65 in the municipality (from SCB population register)
+- **Denominator:** Total population aged 18-65 in the municipality (from SCB population register). This is all residents of working age, not the labour force, so the level is roughly half the conventional unemployment rate. Label it "open unemployment, share of residents", never "unemployment rate"
+- **Age band change:** 18-64 up to and including 2022, 18-65 from 2023 (Kolada KPI description)
 - **Scope:** Openly unemployed only, does NOT include persons in labour market programmes (åtgärder). This is a narrower definition than the AKU (Labour Force Survey) measure.
 
 #### Why N03937, not other KPIs
@@ -745,7 +746,7 @@ The same review moved the unemployment fetch from Kolada's retired v2 API to v3 
 | Variable | Column | Coverage | Zero missing | Source |
 |----------|--------|----------|--------------|--------|
 | Borrowing per capita | `debt_per_capita` | 100% | OK | SCB BalansKn, posts 081-085, 090, 136 |
-| Unemployment rate | `unemployment` | 100% | OK | Kolada N03937 |
+| Open unemployment (share of residents 18-65) | `unemployment` | 100% | OK | Kolada N03937 |
 | Dependency ratio | `dependency_ratio` | 100% | OK | SCB BefolkningNy, ages 0-100+ |
 | Population growth (5-yr) | `population_growth` | 100% | OK | SCB BefolkningNy, "tot" |
 | Tax base relative | `tax_base_relative` | 100% | OK | SCB SkatteKraft, OE0101B0 |
@@ -1179,11 +1180,12 @@ All visual constants are defined centrally in `app/styles/theme.py`:
 
 | File | Page |
 |------|------|
-| `app/main.py` | Entry point and landing page; loads `kri_results.parquet` and shares year and risk filters through session state |
-| `app/pages/riksoversikt.py` | National overview: KPI cards, Folium choropleth, KRI distribution, top and bottom 15 with uncertainty intervals |
-| `app/pages/riskdekomposition.py` | Contribution of each factor for one municipality, radar against the national average, comparison with up to five peers |
-| `app/pages/kommunanalys.py` | Single-municipality deep dive: KPIs, trend, similar municipalities, CSV and PDF export |
-| `app/pages/kallor.py` | Data sources, API details, weight-sensitivity method and the rejected PCA alternative |
+| `app/main.py` | Router: theme, cached data load, shared sidebar (navigation and the global year), runs the selected view |
+| `app/views/startsida.py` | Landing page: what KRI is, headline numbers, entry points |
+| `app/views/riksoversikt.py` | National overview: risk-class filter, KPIs, Folium choropleth, KRI distribution, top and bottom 15 with uncertainty intervals, exports |
+| `app/views/riskdekomposition.py` | Contribution of each factor for one municipality, radar against the national average, comparison with up to five peers |
+| `app/views/kommunanalys.py` | Single-municipality deep dive: KPIs, trend, similar municipalities, history, CSV and PDF export |
+| `app/views/kallor.py` | Data sources, API details, weight-sensitivity method and the rejected PCA alternative |
 
 Components, chart builders and design tokens are documented in `docs/ux-ui-design-system.md`, which is the maintained reference for the UI.
 

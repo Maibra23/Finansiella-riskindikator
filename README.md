@@ -3,7 +3,7 @@
 **Vilka svenska kommuner är strukturellt ekonomiskt sårbara, och varför?**
 
 An interactive Streamlit dashboard ranking all 290 Swedish municipalities on a composite
-financial vulnerability index, 2010-2024. 4 350 observations, no missing values.
+index of structural economic vulnerability, 2010-2024. 4 350 observations, no missing values.
 
 ---
 
@@ -34,8 +34,8 @@ The decomposition shows why:
 | **KRI total** | **+1.07** (rank 6) | **-0.41** (rank 245) |
 
 Nykvarn borrows against a population that grew 12.1 % in five years and a tax base at
-110 % of the national average. Eskilstuna borrows against 4.1 % unemployment and a tax base
-at 86 %. The first is leverage on a growing asset; the second is a structural gap. The
+110 % of the national average. Eskilstuna borrows against open unemployment of 4.1 % of residents
+aged 18-65 and a tax base at 86 %. The first is leverage on a growing asset; the second is a structural gap. The
 pattern holds across the top of the debt table: **Sweden's ten most indebted
 municipalities rank anywhere from 6th to 245th on risk.**
 
@@ -55,8 +55,8 @@ demographic factors instead of reinforcing them.
 
 **Filipstad is rank 1, the most vulnerable municipality in Sweden, without being a debt
 outlier** (71 227 kr, 53rd highest). It ranks first because all five factors point the same
-way: a five-year population decline of -8.2 %, a dependency ratio of 1.03, unemployment of
-3.4 % and a tax base at 75 % of the national average. The **Riskdekomposition** page shows
+way: a five-year population decline of -8.2 %, a dependency ratio of 1.03, open unemployment of
+3.4 % of residents aged 18-65 and a tax base at 75 % of the national average. The **Riskdekomposition** page shows
 this breakdown for any municipality.
 
 ### 3. Is this structural or cyclical?
@@ -67,7 +67,7 @@ single year since 2010.** Positions do move. Malmö went from rank 243 to 51 and
 from 78 to 248, but slowly, and for reasons visible in the trend charts.
 
 > **Read the classes as relative, not absolute.** Risk classes are per-year quartiles, so
-> exactly 25 % of municipalities are Hög risk in every year *by construction*. The share
+> a quarter of municipalities (73 of 290) are Hög risk in every year *by construction*. The share
 > cannot tell you whether Sweden as a whole improved; it tells you how municipalities stand
 > relative to each other.
 
@@ -100,6 +100,12 @@ would rank the most indebted municipalities among the safest. Full argument, plu
 > balance-sheet sum that overstated debt roughly fourfold; the correction history is in
 > [docs/methodology.md §7.4](docs/methodology.md).
 
+> **What "unemployment" means here.** Kolada KPI N03937 counts people registered as
+> openly unemployed at Arbetsförmedlingen as a share of *all residents* aged 18-65, not of
+> the labour force. Levels are therefore roughly half the familiar unemployment rate
+> (Eskilstuna 4.1 %, Malmö 5.5 %). That does not affect the ranking, which only compares
+> municipalities within the same year. The age band was 18-64 up to 2022.
+
 ---
 
 ## The index
@@ -114,9 +120,9 @@ always means higher risk, then weighted:
 | Variable | Weight | Direction | Source |
 |---|---|---|---|
 | Borrowing per capita | 0.25 | High = high risk | SCB, BalansKn |
-| Unemployment | 0.25 | High = high risk | Kolada N03937 (Arbetsförmedlingen) |
+| Open unemployment (% of residents 18-65) | 0.25 | High = high risk | Kolada N03937 (Arbetsförmedlingen) |
 | Dependency ratio | 0.20 | High = high risk | SCB, BefolkningNy |
-| Population growth (5 yr) | 0.15 | Negative = high risk | SCB, BefolkningNy |
+| Population growth (5 yr) | 0.15 | Low = high risk | SCB, BefolkningNy |
 | Tax base (% of national avg) | 0.15 | Low = high risk | SCB, SkatteKraft |
 
 **Classification:** per-year quartiles: Låg below p25, Hög above p75, Medel between.
@@ -145,7 +151,7 @@ python scripts/run_pipeline.py      # fetch -> clean -> build index
 python scripts/run_sensitivity.py   # weight-sensitivity band (optional)
 python scripts/verify_pipeline.py   # validate the output
 python scripts/validate_against_kolada.py  # cross-check against Kolada (network)
-pytest                              # 110 tests
+pytest                              # 149 tests, incl. page smoke tests
 ```
 
 **Streamlit Cloud:** point a new app at this repo with main file `app/main.py` and Python
@@ -157,13 +163,19 @@ pytest                              # 110 tests
 
 | Page | What it's for |
 |---|---|
-| **Riksöversikt** | National picture: choropleth, KRI distribution, top/bottom 15 with uncertainty intervals |
+| **Startsida** | What KRI is, headline numbers for the selected year, entry points |
+| **Riksöversikt** | National picture: risk-class filter, KPIs, choropleth, KRI distribution, top/bottom 15 with uncertainty intervals, all-municipality table, CSV and PDF export |
+| **Kommunanalys** | Single-municipality deep dive: KPIs with 15-year sparklines, trend, similar municipalities, full history, CSV/PDF export, data quality |
 | **Riskdekomposition** | Which of the five factors drives one municipality's score, and comparison against up to five peers |
-| **Kommunanalys** | Single-municipality deep dive: KPIs, 2010-2024 trend, similar municipalities, CSV/PDF export |
-| **Källor** | Data sources, API details, the weight-sensitivity method and the rejected PCA alternative |
+| **Källor och metod** | Data sources with links, API details, the weight-sensitivity method and the rejected PCA alternative |
 
-Built with Streamlit and Apache ECharts; the choropleth uses Folium with keyless Esri
-basemap tiles.
+The year is chosen once in the sidebar and applies to every page; it is also kept in
+the URL (`?ar=2015`), so a link opens the same view. The municipality chosen on
+Kommunanalys carries over to Riskdekomposition and back.
+
+Built with Streamlit (`st.navigation` router in `app/main.py`, views in `app/views/`)
+and Apache ECharts; the choropleth uses Folium with keyless Esri basemap tiles. UI
+conventions are documented in [docs/ux-ui-design-system.md](docs/ux-ui-design-system.md).
 
 ---
 
@@ -174,7 +186,7 @@ All data is public and free to use with attribution.
 | Source | Covers | Licence |
 |---|---|---|
 | SCB Statistikdatabasen (PxWeb API) | Debt, population, tax base | SCB open licence |
-| Kolada / RKA (KPI N03937) | Unemployment, via Arbetsförmedlingen | CC0 |
+| Kolada / RKA (KPI N03937) | Open unemployment (share of residents 18-65), via Arbetsförmedlingen | CC0 |
 
 Endpoints and request examples are documented in-app on the **Källor** page.
 

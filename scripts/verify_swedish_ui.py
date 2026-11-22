@@ -66,6 +66,7 @@ STREAMLIT_API_KEYS: set[str] = {
 # Strings that are always acceptable regardless of content.
 SKIP_PREFIXES = (
     "properties.", "data-testid", "cursor:", "rgba(", "https://", "http://",
+    ":material/",  # Streamlit icon identifiers, not visible text
 )
 
 

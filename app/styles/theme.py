@@ -7,8 +7,6 @@ All code identifiers, comments, and docstrings are in English.
 
 from __future__ import annotations
 
-import copy
-import html
 from typing import Any, Literal
 
 import streamlit as st
@@ -28,7 +26,9 @@ def apply_streamlit_theme() -> None:
             page_title="KRI Kontrollpanel",
             page_icon=":bar_chart:",
             layout="wide",
-            initial_sidebar_state="expanded",
+            # Integer = sidebar width in px with "auto" state: expanded on desktop,
+            # collapsed on phones so it does not cover the page.
+            initial_sidebar_state=260,
             menu_items={
                 "Get Help": None,
                 "Report a bug": None,
@@ -52,10 +52,6 @@ def apply_streamlit_theme() -> None:
     high = COLORS["high_risk"]
 
     css = f"""
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-
     <style>
     /* Shared rhythm: main + sidebar use the same horizontal gutter so text keylines align. */
     :root {{
@@ -67,6 +63,8 @@ def apply_streamlit_theme() -> None:
         --kri-brand-bar-offset: 14px;
         /* Minimal top inset inside .lp-hero so gold eyebrow aligns with sidebar (avoid stacking on --kri-pad-y) */
         --kri-hero-pad-top: 0.35rem;
+        /* Streamlit bundles Source Sans 3; no external font download. */
+        --kri-font: "Source Sans 3", "Source Sans Pro", -apple-system, "Segoe UI", sans-serif;
     }}
 
     #MainMenu {{visibility: hidden;}}
@@ -81,16 +79,29 @@ def apply_streamlit_theme() -> None:
         border: none !important;
         overflow: visible;
     }}
-    [data-testid="collapsedControl"] {{
+    /* Sidebar toggle. Streamlit 1.67 renders the "open sidebar" button inside the hidden
+       header, so it is made visible again here. Version-sensitive test-id. */
+    [data-testid="stExpandSidebarButton"] {{
         visibility: visible !important;
         position: fixed !important;
-        top: 0.65rem !important;
-        left: 0.65rem !important;
+        top: 0.75rem !important;
+        left: 0.75rem !important;
         z-index: 1002 !important;
+        background: {p} !important;
+        color: #FFFFFF !important;
+        border-radius: 4px;
+    }}
+    [data-testid="stExpandSidebarButton"] * {{
+        color: #FFFFFF !important;
     }}
 
     html, body {{
-        font-family: 'Source Sans Pro', -apple-system, sans-serif !important;
+        font-family: var(--kri-font) !important;
+    }}
+    /* Keyboard focus must always be visible (WCAG 2.4.7). */
+    :focus-visible {{
+        outline: 2px solid {COLORS["secondary"]} !important;
+        outline-offset: 2px !important;
     }}
 
     /* Main content only, never force dark body text on [class*="css"] or it paints the sidebar unreadable */
@@ -120,15 +131,22 @@ def apply_streamlit_theme() -> None:
 
     [data-testid="stSidebar"] {{
         background-color: {p};
-        min-width: 260px !important;
-        width: 260px !important;
         color: #E8ECF4 !important;
         border-right: 1px solid {border};
     }}
 
-    /* Fallback if config.toml client.showSidebarNavigation is not applied */
+    /* Sidebar header only holds the collapse button (auto-nav is off in config.toml).
+       Take it out of the flow so the brand block keeps its position. */
     [data-testid="stSidebarHeader"] {{
-        display: none !important;
+        position: absolute !important;
+        top: 0.5rem;
+        right: 0.5rem;
+        height: auto !important;
+        padding: 0 !important;
+        z-index: 2;
+    }}
+    [data-testid="stSidebarCollapseButton"] button {{
+        color: rgba(255, 255, 255, 0.75) !important;
     }}
 
     /* Streamlit puts sidebar widgets in stSidebarContent (often no .block-container); pad this node so gutters match main */
@@ -199,7 +217,7 @@ def apply_streamlit_theme() -> None:
         color: rgba(255, 255, 255, 0.92) !important;
         font-size: 13.5px !important;
         line-height: 1.45 !important;
-        font-family: 'Source Sans Pro', -apple-system, sans-serif !important;
+        font-family: var(--kri-font) !important;
         background: transparent !important;
         background-color: transparent !important;
     }}
@@ -257,74 +275,10 @@ def apply_streamlit_theme() -> None:
         width: 100%;
     }}
 
-    /* KPI cards */
-    .kpi-card {{
-        background: {card};
-        border: 1px solid {border};
-        border-radius: 4px;
-        padding: 20px 22px;
-        position: relative;
-        overflow: hidden;
-        height: 100%;
-        min-height: 148px;
-        box-sizing: border-box;
-    }}
-    .kpi-card::before {{
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 3px;
-        height: 100%;
-        background: {p};
-    }}
-    .kpi-card.kpi-primary::before {{ background: {p}; }}
-    .kpi-card.kpi-accent::before {{ background: {accent}; }}
-    .kpi-card.kpi-danger::before {{ background: {high}; }}
-    .kpi-card.kpi-success::before {{ background: {low}; }}
-    .kpi-card.kpi-card--tipped {{
-        cursor: help;
-    }}
 
-    .kpi-label {{
-        font-size: var(--kri-label-upper);
-        text-transform: uppercase;
-        letter-spacing: var(--kri-label-track);
-        color: {text_sec};
-        margin-bottom: 10px;
-        font-weight: 600;
-    }}
-    .kpi-value {{
-        font-size: 32px;
-        font-weight: 700;
-        color: {p};
-        letter-spacing: 0.02em;
-        line-height: 1.1;
-        font-variant-numeric: tabular-nums;
-    }}
-    .kpi-unit {{
-        font-size: 14px;
-        font-weight: 400;
-        color: {text_sec};
-        margin-left: 0.45em;
-        white-space: nowrap;
-    }}
-    .kpi-delta {{
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 12px;
-        margin-top: 8px;
-        font-family: 'IBM Plex Mono', monospace;
-    }}
-    .delta-up {{ color: {high}; }}
-    .delta-down {{ color: {low}; }}
-    .delta-flat {{ color: {text_ter}; }}
-    .kpi-delta.delta-up::before {{ content: '▲'; font-size: 10px; }}
-    .kpi-delta.delta-down::before {{ content: '▼'; font-size: 10px; }}
-    .kpi-delta.delta-flat::before {{ content: '●'; font-size: 10px; }}
+    /* Optional tone overrides the colour so the arrow can show the direction of change
 
-    .mono, .num {{ font-family: 'IBM Plex Mono', monospace; }}
+    .mono, .num {{ font-variant-numeric: tabular-nums; }}
 
     /* Cards */
     .card {{
@@ -353,16 +307,6 @@ def apply_streamlit_theme() -> None:
         color: {text_sec};
         margin-top: 2px;
     }}
-    .card-tag {{
-        font-size: 9.5px;
-        font-family: 'IBM Plex Mono', monospace;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        padding: 4px 8px;
-        background: {bg};
-        color: {text_sec};
-        border-radius: 2px;
-    }}
 
     /* Page header */
     .page-header {{
@@ -377,7 +321,7 @@ def apply_streamlit_theme() -> None:
         font-size: var(--kri-label-upper);
         text-transform: uppercase;
         letter-spacing: var(--kri-label-track);
-        color: {accent};
+        color: {COLORS["accent_text"]};
         font-weight: 600;
         margin-bottom: 6px;
     }}
@@ -396,14 +340,15 @@ def apply_streamlit_theme() -> None:
         text-align: right;
         font-size: 11px;
         color: {text_ter};
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         text-transform: uppercase;
         letter-spacing: 0.8px;
     }}
     .year-display {{
         font-size: 32px;
         color: {p};
-        font-family: 'Source Sans Pro', sans-serif;
+        font-family: var(--kri-font);
         font-weight: 300;
         letter-spacing: -1px;
         line-height: 1;
@@ -495,12 +440,14 @@ def apply_streamlit_theme() -> None:
     .kri-table tbody td.num {{
         text-align: right;
         font-variant-numeric: tabular-nums;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         font-size: 12.5px;
     }}
     .kri-table tbody tr:hover {{ background: {hover}; }}
     .rank-cell {{
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         color: {text_ter};
         font-size: 11.5px;
         width: 36px;
@@ -516,7 +463,7 @@ def apply_streamlit_theme() -> None:
         letter-spacing: 0.7px;
     }}
     .risk-pill.hog {{ background: rgba(185,74,72,0.12); color: {high}; border: 1px solid rgba(185,74,72,0.3); }}
-    .risk-pill.medel {{ background: rgba(212,160,60,0.12); color: #8B6914; border: 1px solid rgba(212,160,60,0.3); }}
+    .risk-pill.medel {{ background: rgba(212,160,60,0.12); color: {COLORS["medium_risk_text"]}; border: 1px solid rgba(212,160,60,0.3); }}
     .risk-pill.lag {{ background: rgba(46,125,91,0.12); color: {low}; border: 1px solid rgba(46,125,91,0.3); }}
     /* Gränsfall: markör för viktkänslighet, inte en fjärde riskklass. Medvetet
        färglös: gult betyder redan "Medel" i panelen, så en gul markör på en
@@ -543,7 +490,8 @@ def apply_streamlit_theme() -> None:
         gap: 8px;
     }}
     .footer-note code {{
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         font-size: 10.5px;
         background: {bg};
         padding: 2px 6px;
@@ -559,7 +507,8 @@ def apply_streamlit_theme() -> None:
         border: 1px solid rgba(255,255,255,0.25) !important;
         border-radius: 4px !important;
         padding: 4px 9px !important;
-        font-family: 'IBM Plex Mono', monospace !important;
+        font-family: var(--kri-font) !important;
+        font-variant-numeric: tabular-nums;
         font-size: 11px !important;
         font-weight: 500 !important;
         min-height: auto !important;
@@ -591,33 +540,15 @@ def apply_streamlit_theme() -> None:
         color: {p} !important;
     }}
 
-    /* ── Riskklass: punkt-legend ------------------------------- */
     .sidebar-control {{
         margin-top: 24px;
         padding-top: 20px;
         border-top: 1px solid rgba(255,255,255,0.08);
     }}
-    .riskklass-legend {{ margin-top: 8px; }}
-    .riskklass-rad {{
-        display: flex;
-        align-items: center;
-        font-size: 13.5px;
-        color: rgba(255,255,255,0.75);
-        margin-bottom: 8px;
-        line-height: 1.35;
-    }}
-    .riskklass-punkt {{
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        flex-shrink: 0;
-    }}
 
     /* ── Landing page (.lp-*): scoped to home; tokens from COLORS --------- */
     .lp-hero {{
-        background: linear-gradient(145deg, {p} 0%, {COLORS["primary_light"]} 55%, #152a52 100%);
+        background: {p};
         border-radius: 4px;
         padding: var(--kri-hero-pad-top) var(--kri-pad-x) 20px;
         margin-bottom: 0;
@@ -698,7 +629,8 @@ def apply_streamlit_theme() -> None:
         margin-bottom: 6px;
     }}
     .lp-stat-value {{
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         font-size: 28px;
         font-weight: 600;
         color: {p};
@@ -719,7 +651,7 @@ def apply_streamlit_theme() -> None:
         font-size: var(--kri-label-upper);
         text-transform: uppercase;
         letter-spacing: var(--kri-label-track);
-        color: {accent};
+        color: {COLORS["accent_text"]};
         font-weight: 600;
         margin-bottom: 10px;
     }}
@@ -787,7 +719,8 @@ def apply_streamlit_theme() -> None:
     .lp-weight-pct {{
         flex: 0 0 44px;
         text-align: right;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         font-size: 12px;
         color: {text_sec};
     }}
@@ -822,7 +755,6 @@ def apply_streamlit_theme() -> None:
         padding: 18px 18px 20px;
         position: relative;
         border-left: 3px solid {accent};
-        transition: box-shadow 0.2s ease, border-color 0.2s ease;
     }}
     .lp-step-connector {{
         flex: 0 0 36px;
@@ -839,14 +771,11 @@ def apply_streamlit_theme() -> None:
         flex-shrink: 0;
         display: block;
     }}
-    .lp-step:hover {{
-        box-shadow: 0 4px 14px rgba(11,31,63,0.07);
-        border-color: rgba(196,163,90,0.35);
-    }}
     .lp-step-num {{
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: var(--kri-font);
+        font-variant-numeric: tabular-nums;
         font-size: 11px;
-        color: {accent};
+        color: {COLORS["accent_text"]};
         font-weight: 600;
         margin-bottom: 8px;
     }}
@@ -895,27 +824,12 @@ def apply_streamlit_theme() -> None:
         padding: 20px 20px 18px;
         border-left: 3px solid {accent};
         min-height: 120px;
-        transition: box-shadow 0.2s ease, border-color 0.2s ease;
-    }}
-    .lp-nav-card:hover {{
-        box-shadow: 0 4px 16px rgba(11,31,63,0.08);
-        border-color: rgba(196,163,90,0.4);
     }}
     .lp-nav-card-head {{
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         margin-bottom: 10px;
-    }}
-    .lp-nav-tag {{
-        font-size: 9.5px;
-        font-family: 'IBM Plex Mono', monospace;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        padding: 4px 8px;
-        background: {bg};
-        color: {text_sec};
-        border-radius: 2px;
     }}
     .lp-nav-title {{
         font-size: 15px;
@@ -948,47 +862,6 @@ def apply_streamlit_theme() -> None:
         stroke-width: 1.6;
     }}
 
-    .lp-cred {{
-        margin-top: 28px;
-        padding: 16px 20px 18px;
-        border: 1px solid {border};
-        border-radius: 4px;
-        background: {card};
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        font-size: 12px;
-        color: {text_ter};
-        text-align: center;
-    }}
-    .lp-cred-pills {{
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-        justify-content: center;
-    }}
-    .lp-cred-pill {{
-        font-size: 10.5px;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-        padding: 4px 10px;
-        border-radius: 2px;
-        background: {bg};
-        border: 1px solid {border};
-        color: {text_sec};
-        font-weight: 600;
-    }}
-    .lp-cred-meta {{
-        font-family: 'Source Sans Pro', sans-serif;
-        font-size: 11px;
-        color: {text_sec};
-        line-height: 1.4;
-        text-align: center;
-        max-width: 100%;
-    }}
 
     @media (max-width: 900px) {{
         .lp-stat-strip {{ grid-template-columns: repeat(2, 1fr); }}
@@ -1013,6 +886,78 @@ def apply_streamlit_theme() -> None:
         .lp-stat-cell:last-child {{ border-bottom: none; }}
         .lp-hero {{ padding: var(--kri-hero-pad-top) 16px 16px; }}
     }}
+    /* ── Modernized components (app/ui) ------------------------------- */
+    .card-header--plain {{
+        border-bottom: none;
+        margin-bottom: 6px;
+        padding-bottom: 0;
+    }}
+    .kri-note {{
+        font-size: 13px;
+        color: {text_sec};
+        margin-top: 4px;
+    }}
+    .kommun-summary {{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-size: 14.5px;
+        color: {text_sec};
+        padding: 8px 0;
+        font-variant-numeric: tabular-nums;
+    }}
+    .kommun-summary strong {{ color: {text_pri}; font-weight: 600; }}
+    .kommun-summary .sep {{ color: {COLORS["border_strong"]}; }}
+    .kommun-summary .risk-pill {{ font-size: 12px; padding: 3px 10px; }}
+    /* Numbers in native metrics line up like a statement. */
+    [data-testid="stMetricValue"], [data-testid="stMetricDelta"] {{
+        font-variant-numeric: tabular-nums;
+    }}
+    [data-testid="stMetricLabel"] p {{
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: {text_sec} !important;
+    }}
+    /* Landing nav card sits inside a bordered container: no second frame. */
+    [data-testid="stMain"] [data-testid="stVerticalBlockBorderWrapper"] .lp-nav-card {{
+        border: none;
+        padding: 0 0 6px 0;
+        min-height: 0;
+        background: transparent;
+    }}
+    /* Startsida entry points: first link primary (navy), second secondary (outlined). */
+    .st-key-lp_cta a[data-testid="stPageLink-NavLink"] {{
+        border: 1px solid {p};
+        border-radius: 6px;
+        padding: 8px 16px;
+        background: {card};
+    }}
+    .st-key-lp_cta > [data-testid="stElementContainer"]:first-child a[data-testid="stPageLink-NavLink"] {{
+        background: {p};
+    }}
+    .st-key-lp_cta > [data-testid="stElementContainer"]:first-child a[data-testid="stPageLink-NavLink"] * {{
+        color: #FFFFFF !important;
+    }}
+    .st-key-lp_cta a[data-testid="stPageLink-NavLink"]:hover {{
+        background: {COLORS["primary_hover"]};
+    }}
+    .st-key-lp_cta a[data-testid="stPageLink-NavLink"]:hover * {{
+        color: #FFFFFF !important;
+    }}
+    /* Sidebar section labels: spacing between nav groups. */
+    [data-testid="stSidebar"] .nav-section {{
+        margin-top: 14px;
+        margin-bottom: 4px;
+    }}
+    @media (max-width: 640px) {{
+        .page-header {{ flex-direction: column; align-items: flex-start; gap: 8px; }}
+        .header-meta {{ text-align: left; }}
+        .page-title {{ font-size: 24px; overflow-wrap: break-word; hyphens: auto; }}
+    }}
+
     @media (prefers-reduced-motion: reduce) {{
         .lp-step, .lp-nav-card {{ transition: none !important; }}
         .lp-step-arrow-svg {{ transition: none !important; }}
@@ -1023,17 +968,21 @@ def apply_streamlit_theme() -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
+# Charts render inside iframes, so they use a font stack rather than the CSS variable.
+ECHARTS_FONT = "'Source Sans 3', 'Source Sans Pro', -apple-system, 'Segoe UI', sans-serif"
+
+
 def get_tooltip_style() -> dict[str, Any]:
     """Return consistent ECharts tooltip styling (light card, dark text)."""
     return {
         "trigger": "axis",
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": COLORS["card_bg"],
         "borderColor": COLORS["border"],
         "borderWidth": 1,
         "padding": [10, 14],
         "textStyle": {
             "color": COLORS["text_primary"],
-            "fontFamily": "Source Sans Pro",
+            "fontFamily": ECHARTS_FONT,
             "fontSize": 13,
         },
         "extraCssText": "box-shadow: 0 4px 16px rgba(0,0,0,0.10); border-radius: 6px;",
@@ -1046,14 +995,13 @@ def get_tooltip_style() -> dict[str, Any]:
 
 def get_axis_style(axis_type: Literal["value", "category"] = "value") -> dict[str, Any]:
     """Return axis styling; horizontal dashed grids for value axes only."""
-    font = "IBM Plex Mono" if axis_type == "value" else "Source Sans Pro"
     out: dict[str, Any] = {
         "axisLine": {"lineStyle": {"color": COLORS["grid"]}},
         "axisTick": {"show": False},
         "axisLabel": {
             "color": COLORS["text_secondary"],
-            "fontSize": 10,
-            "fontFamily": font,
+            "fontSize": 11,
+            "fontFamily": ECHARTS_FONT,
         },
     }
     if axis_type == "value":
@@ -1066,19 +1014,13 @@ def get_axis_style(axis_type: Literal["value", "category"] = "value") -> dict[st
     return out
 
 
-def format_swedish_int(n: int | float) -> str:
-    """Format a whole number with no-break space as thousands separator (Swedish UI)."""
-    v = int(round(float(n)))
-    sign = "-" if v < 0 else ""
-    body = f"{abs(v):,}".replace(",", "\u00a0")
-    return f"{sign}{body}"
-
-
 def get_echarts_base_options() -> dict[str, Any]:
     """Shared ECharts JSON base; merge chart-specific options on top."""
     base = {
         "backgroundColor": COLORS["card_bg"],
-        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
+        "textStyle": {"fontFamily": ECHARTS_FONT, "color": COLORS["text_primary"]},
+        # Lets ECharts generate a text description of each chart for screen readers.
+        "aria": {"enabled": True},
         "grid": {
             "left": 56,
             "right": 30,
@@ -1088,65 +1030,9 @@ def get_echarts_base_options() -> dict[str, Any]:
         },
         "tooltip": get_tooltip_style(),
         "animation": True,
-        "animationDuration": 400,
+        "animationDuration": 250,
     }
     return base
-
-
-def render_kpi_card(
-    label: str,
-    value: str,
-    unit: str,
-    delta: str,
-    delta_direction: Literal["up", "down", "flat"],
-    variant: Literal["primary", "accent", "danger", "success"],
-    tooltip: str | None = None,
-) -> str:
-    """Return HTML for a KPI card (caller uses st.markdown(..., unsafe_allow_html=True).
-
-    Optional ``tooltip`` is exposed as the HTML ``title`` attribute (native hover text).
-    """
-    tip_class = " kpi-card--tipped" if tooltip else ""
-    tip_attr = (
-        f' title="{html.escape(tooltip, quote=True)}"' if tooltip else ""
-    )
-    return f"""
-<div class="kpi-card kpi-{variant}{tip_class}"{tip_attr}>
-  <div class="kpi-label">{label}</div>
-  <div class="kpi-value">{value}<span class="kpi-unit">{unit}</span></div>
-  <div class="kpi-delta delta-{delta_direction}">{delta}</div>
-</div>
-"""
-
-
-def render_card_header(title: str, subtitle: str, tag: str) -> str:
-    """Return HTML for a card header row."""
-    return f"""
-<div class="card-header">
-  <div>
-    <div class="card-title">{title}</div>
-    <div class="card-subtitle">{subtitle}</div>
-  </div>
-  <span class="card-tag">{tag}</span>
-</div>
-"""
-
-
-def render_page_header(eyebrow: str, title: str, subtitle: str, year: str) -> str:
-    """Return HTML for the main page title block."""
-    return f"""
-<div class="page-header">
-  <div class="page-title-group">
-    <div class="eyebrow">{eyebrow}</div>
-    <h1 class="page-title">{title}</h1>
-    <div class="page-sub">{subtitle}</div>
-  </div>
-  <div class="header-meta">
-    <div class="year-display">{year}</div>
-    <div>Analysår</div>
-  </div>
-</div>
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -1260,18 +1146,16 @@ def render_landing_steps(
 
 
 def render_landing_nav_card(
-    tag: str,
     title: str,
     desc: str,
     icon: Literal["map", "layers", "search"],
 ) -> str:
-    """Feature card (visual only; pair with st.page_link below for accessibility)."""
+    """Feature card body; the caller adds an st.page_link so the card is a real link."""
     svg = _NAV_ICONS.get(icon, _NAV_ICONS["map"])
     return f"""
 <div class="lp-nav-card">
   <div class="lp-nav-card-head">
     <div class="lp-nav-icon">{svg}</div>
-    <span class="lp-nav-tag">{tag}</span>
   </div>
   <div class="lp-nav-title">{title}</div>
   <p class="lp-nav-desc">{desc}</p>
@@ -1287,48 +1171,3 @@ def render_landing_nav_section_title(text: str, in_panel: bool = False) -> str:
     return f'<div class="{cls}">{text}</div>'
 
 
-def render_landing_credibility(
-    pills: list[str],
-    meta: str,
-) -> str:
-    """Sources + KRI version line."""
-    pill_html = "".join(f'<span class="lp-cred-pill">{p}</span>' for p in pills)
-    return f"""
-<div class="lp-cred">
-  <div class="lp-cred-pills">{pill_html}</div>
-  <div class="lp-cred-meta">{meta}</div>
-</div>
-"""
-
-
-# ---------------------------------------------------------------------------
-# Risk colour helpers
-# ---------------------------------------------------------------------------
-
-_RISK_COLOR_MAP: dict[str, str] = {
-    "Låg": COLORS["low_risk"],
-    "Medel": COLORS["medium_risk"],
-    "Hög": COLORS["high_risk"],
-    "låg": COLORS["low_risk"],
-    "medel": COLORS["medium_risk"],
-    "hög": COLORS["high_risk"],
-    "Lag": COLORS["low_risk"],
-    "Hog": COLORS["high_risk"],
-}
-
-
-def get_risk_color(risk_class: str) -> str:
-    """Return hex colour for a Swedish risk class label."""
-    color = _RISK_COLOR_MAP.get(risk_class)
-    if color is None:
-        raise ValueError(
-            f"Okänd riskklass: '{risk_class}'. Giltiga värden: 'Låg', 'Medel', 'Hög'."
-        )
-    return color
-
-
-def get_risk_badge_html(risk_class: str) -> str:
-    """Return a pill span for use with st.markdown(..., unsafe_allow_html=True)."""
-    css_map = {"Låg": "lag", "Medel": "medel", "Hög": "hog"}
-    cls = css_map.get(risk_class, "medel")
-    return f'<span class="risk-pill {cls}">{risk_class}</span>'

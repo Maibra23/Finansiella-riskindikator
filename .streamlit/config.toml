@@ -1,4 +1,34 @@
-# Custom navigation uses st.sidebar.page_link only, hide default multipage header
-# (otherwise Streamlit shows "main" / script name above the branded block).
+# Navigation is built by app/main.py with st.navigation(position="hidden") and a
+# branded sidebar, so Streamlit's own page list stays hidden.
 [client]
 showSidebarNavigation = false
+
+# Native theme (Streamlit 1.67). Values mirror src/config.py COLORS; see
+# UX_UI_MODERNIZATION_PLAN.md §A7.2. CSS in app/styles/theme.py only covers what
+# the theme cannot express (brand block, hero, stat strip, risk pills, tables).
+[theme]
+base = "light"
+primaryColor = "#0B1F3F"
+backgroundColor = "#F7F8FA"
+secondaryBackgroundColor = "#F1F3F6"
+textColor = "#1A1A2E"
+borderColor = "#E3E6EB"
+linkColor = "#2F5D9E"
+baseRadius = "6px"
+font = "sans-serif"
+codeFont = "monospace"
+metricValueFontSize = "1.75rem"
+metricValueFontWeight = 600
+dataframeHeaderBackgroundColor = "#F1F3F6"
+greenColor = "#2E7D5B"
+redColor = "#B94A48"
+orangeColor = "#8F5F0A"
+chartCategoricalColors = ["#1F4E8C", "#9A78D6", "#2C8F89", "#333B47", "#A8792A"]
+
+[theme.sidebar]
+backgroundColor = "#0B1F3F"
+secondaryBackgroundColor = "#16305C"
+textColor = "#E8ECF4"
+primaryColor = "#C4A35A"
+borderColor = "#24365A"
+linkColor = "#FFFFFF"

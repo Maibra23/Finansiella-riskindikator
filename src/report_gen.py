@@ -735,9 +735,9 @@ def generate_report(
     ]
     var_rows = [
         ("Låneskuld per capita (kr)", "25 %", "Hög = hög risk", "SCB BalansKn"),
-        ("Arbetslöshet (%)", "25 %", "Hög = hög risk", "Arbetsförmedlingen/Kolada"),
+        ("Öppet arbetslösa (% av 18-65 år)", "25 %", "Hög = hög risk", "Arbetsförmedlingen/Kolada"),
         ("Försörjningskvot", "20 %", "Hög = hög risk", "SCB BefolkningNy"),
-        ("Befolkningstillväxt 5 år (%)", "15 %", "Negativ = hög risk", "SCB BefolkningNy"),
+        ("Befolkningstillväxt 5 år (%)", "15 %", "Låg = hög risk", "SCB BefolkningNy"),
         ("Skattekraft (% av rikssnitt)", "15 %", "Låg = hög risk", "SCB SkatteKraft"),
     ]
     var_data = [var_header] + [

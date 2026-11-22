@@ -67,13 +67,13 @@ def render_index_flow_svg() -> str:
   <line x1="122" y1="34" x2="132" y2="34" stroke="{acc}" stroke-width="1.5" marker-end="url(#lp-arr)"/>
   <rect x="136" y="18" width="54" height="32" rx="3" fill="{p}" stroke="{acc}" stroke-width="1"/>
   <text x="{cx2}" y="34" text-anchor="middle" fill="#FFFFFF" font-family="Source Sans Pro, sans-serif" font-size="13" font-weight="700">KRI</text>
-  <text x="{cx2}" y="44" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-family="IBM Plex Mono, monospace" font-size="7">index</text>
+  <text x="{cx2}" y="44" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-family="Source Sans 3, Source Sans Pro, sans-serif" font-size="7">index</text>
   <line x1="192" y1="34" x2="202" y2="34" stroke="{acc}" stroke-width="1.5" marker-end="url(#lp-arr)"/>
   <rect x="206" y="14" width="250" height="40" rx="2" fill="#FFFFFF" stroke="{g}" stroke-width="1"/>
   <rect x="214" y="22" width="68" height="22" rx="2" fill="rgba(46,125,91,0.12)" stroke="{low}" stroke-width="1"/>
   <text x="248" y="36" text-anchor="middle" fill="{low}" font-family="Source Sans Pro, sans-serif" font-size="9" font-weight="700">Låg</text>
   <rect x="288" y="22" width="68" height="22" rx="2" fill="rgba(212,160,60,0.12)" stroke="{med}" stroke-width="1"/>
-  <text x="322" y="36" text-anchor="middle" fill="#8B6914" font-family="Source Sans Pro, sans-serif" font-size="9" font-weight="700">Medel</text>
+  <text x="322" y="36" text-anchor="middle" fill="{COLORS["medium_risk_text"]}" font-family="Source Sans Pro, sans-serif" font-size="9" font-weight="700">Medel</text>
   <rect x="362" y="22" width="68" height="22" rx="2" fill="rgba(185,74,72,0.12)" stroke="{high}" stroke-width="1"/>
   <text x="396" y="36" text-anchor="middle" fill="{high}" font-family="Source Sans Pro, sans-serif" font-size="9" font-weight="700">Hög</text>
   <text x="{cx3}" y="62" text-anchor="middle" fill="{ts}" font-family="Source Sans Pro, sans-serif" font-size="7.5">Kvartiler per år · N = 290</text>

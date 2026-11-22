@@ -146,11 +146,33 @@ COLORS = {
     "card_bg": "#FFFFFF",
     "text_primary": "#1A1A2E",
     "text_secondary": "#6B7280",
-    "text_tertiary": "#9CA3AF",
-    "border": "#EEF0F3",
+    "text_tertiary": "#6E7581",   # was #9CA3AF (2.5:1); now 4.6:1 on white
+    "border": "#E3E6EB",          # was #EEF0F3; visible card borders
     "grid": "#E5E7EB",
     "hover": "#F9FAFB",
+    # Added by the UX modernization (existing keys are never removed or renamed)
+    "primary_hover": "#16305C",
+    "accent_text": "#8A6A1F",      # gold-toned text on light surfaces (5.05:1)
+    "surface_muted": "#F1F3F6",
+    "border_strong": "#C9CFD8",
+    "medium_risk_text": "#8F5F0A",  # Medel text and badges (5.51:1); medium_risk is fill only
 }
+
+# Categorical palette for the five indicators. Deliberately avoids the risk
+# colours (green/amber/red), which mean risk class and nothing else. Lightness
+# varies as well as hue, so every pair stays apart (CIE76 ΔE >= 19) under
+# simulated deuteranopia, protanopia and tritanopia, and every colour has at
+# least 3:1 contrast on white (WCAG 1.4.11). See docs/ux-modernization-log.md.
+INDICATOR_COLORS = {
+    "debt": "#1F4E8C",
+    "unemployment": "#9A78D6",
+    "dependency_ratio": "#2C8F89",
+    "population_growth": "#333B47",
+    "tax_base": "#A8792A",
+}
+
+SPACING = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48}
+RADIUS = {"card": 6, "pill": 4}
 
 DIVERGING_SCALE = [
     "#2E7D5B",
@@ -206,7 +228,7 @@ TYPOGRAPHY = {
 SWEDISH_LABELS: Dict[str, str] = {
     # Core variables
     "debt_per_capita": "Skuld per capita",
-    "unemployment": "Arbetslöshet",
+    "unemployment": "Öppet arbetslösa",
     "dependency_ratio": "Försörjningskvot",
     "population_growth": "Befolkningstillväxt",
     "tax_base": "Skattekraft",

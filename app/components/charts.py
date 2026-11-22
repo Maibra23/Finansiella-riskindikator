@@ -3,11 +3,16 @@ Reusable Apache ECharts option builders for the KRI dashboard.
 
 All chart titles, axes, legends, and tooltip text are in Swedish.
 Function names and comments are in English.
+
+Every JS formatter formats numbers through one shared helper (``_JS_FMT``) so
+tooltips and axes follow the same Swedish rules as the rest of the UI: decimal
+comma, narrow no-break space for thousands, ASCII minus.
 """
 
 from __future__ import annotations
 
 import copy
+import json
 import math
 from typing import Any
 
@@ -16,7 +21,7 @@ from app.styles.theme import (
     get_echarts_base_options,
     get_tooltip_style,
 )
-from src.config import COLORS
+from src.config import COLORS, INDICATOR_COLORS
 from src.risk_scale import RiskScale
 
 # ---------------------------------------------------------------------------
@@ -32,27 +37,44 @@ def _js(code: str) -> str:
     return f"{_JS_PLACEHOLDER}{code}{_JS_PLACEHOLDER}"
 
 
-# ---------------------------------------------------------------------------
-# Shared tooltip CSS constants, reused across all formatter strings
-# ---------------------------------------------------------------------------
-# These are Python strings injected into JS formatter template literals.
-_TT_HDR = "font-weight:700;font-size:14px;color:#1A1A2E;margin-bottom:8px;line-height:1.35"
-_TT_HDR_SM = "font-weight:700;font-size:13px;color:#1A1A2E;margin-bottom:6px;line-height:1.35"
-_TT_ROW = (
-    "display:flex;justify-content:space-between;gap:20px;"
-    "font-size:12px;color:#1A1A2E;padding:2px 0;line-height:1.45"
+# Swedish number formatter, prepended to every formatter body.
+# f(v, nd) -> "1 234,56" ; s(v, nd) -> "+0,61" (explicit sign).
+_JS_FMT = (
+    "var f=function(v,nd){if(v===null||v===undefined||isNaN(v))return 'Saknas';"
+    "var r=Number(v).toFixed(nd);if(Number(r)===0)r=(0).toFixed(nd);"
+    "var neg=r.charAt(0)==='-';if(neg)r=r.slice(1);"
+    "var parts=r.split('.');parts[0]=parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g,'\\u202f');"
+    "return (neg?'-':'')+parts.join(',');};"
+    "var s=function(v,nd){var t=f(v,nd);return (Number(v)>0&&t!==f(0,nd))?'+'+t:t;};"
 )
-_TT_BODY = "font-size:12px;color:#1A1A2E;line-height:1.65"
-_TT_LBL = "color:#6B7280;font-weight:400"
-_TT_VAL = "font-weight:600;color:#1A1A2E"
-_TT_VAL_MONO = "font-weight:600;color:#1A1A2E;font-family:monospace"
-_TT_MUTED = "color:#6B7280;font-size:11px;line-height:1.5"
-_TT_FTR = "color:#9CA3AF;font-size:11px;margin-top:6px;padding-top:6px;border-top:1px solid #F3F4F6;line-height:1.45"
-_TT_DIVIDER = "border-top:1px solid #F3F4F6;margin:6px 0"
+
+
+def _axis_number_formatter(max_nd: int = 2) -> str:
+    """Value-axis tick labels in Swedish format ("0,5" not "0.5").
+
+    Keeps each tick's own precision (0,05 stays 0,05, 0,5 stays 0,5) up to
+    *max_nd* decimals, so adjacent ticks never collapse into the same label.
+    """
+    return _js(
+        "function(v){" + _JS_FMT +
+        "var d=(String(v).split('.')[1]||'').length;"
+        "return f(v,Math.min(d," + str(max_nd) + "));}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared tooltip CSS, built from design tokens
+# ---------------------------------------------------------------------------
+_TXT = COLORS["text_primary"]
+_MUTED = COLORS["text_secondary"]
 
 # Radar frame floor: keeps a stable +-2.5 span for the ~87 % of municipalities
 # whose z-scores fit inside it, so charts stay comparable between selections.
 RADAR_MIN_EXTENT = 2.5
+
+# Indicator label -> colour. Labels come from the pages (Swedish), so the map is
+# keyed on the stable indicator ids and resolved by the callers' label order.
+INDICATOR_ORDER = ["debt", "unemployment", "dependency_ratio", "population_growth", "tax_base"]
 
 
 def _bin_color(bin_center: float, scale: RiskScale) -> str:
@@ -68,14 +90,18 @@ def build_distribution_histogram(
     kri_scores: list[float],
     median: float,
     scale: RiskScale | None = None,
+    total: int | None = None,
 ) -> dict[str, Any]:
     """Vertical histogram with median mark line, binned over the risk scale.
 
     Pass *scale* built from the unfiltered population so the zone colours match
     the risk classes shown in the tables; it is otherwise derived from
     *kri_scores*, which is only correct when those are unfiltered.
+    *total* is the denominator shown in the tooltip (defaults to the number of
+    scores, i.e. the kommuner actually plotted).
     """
     scale = scale or RiskScale.from_scores(kri_scores)
+    total = total if total is not None else len(kri_scores)
     n_bins = 24
     lo, hi = -scale.extent, scale.extent
     step = (hi - lo) / n_bins
@@ -124,17 +150,18 @@ def build_distribution_histogram(
         **get_tooltip_style(),
         "trigger": "axis",
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "if(!p||!p.length)return '';"
             "var x=p[0],lo=parseFloat(x.axisValue),hi=lo+" + _step_val + ";"
             "var d=x.data,n=(d&&typeof d==='object'&&'value' in d)?d.value:(typeof x.value==='number'?x.value:0);"
-            "var pct=(n/290*100).toFixed(1).replace('.',',');"
+            f"var tot={int(total)};"
+            "var pct=tot?f(n/tot*100,1):'0';"
             f"var z=lo<{scale.low:.4f}?'Låg risk':lo>{scale.high:.4f}?'Hög risk':'Medel risk';"
             f"var c=lo<{scale.low:.4f}?'{COLORS['low_risk']}':"
-            f"lo>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk']}';"
-            "return '<b>KRI '+lo.toFixed(2).replace('.',',')+' \\u2013 '+hi.toFixed(2).replace('.',',')+'</b><br/>'"
-            "+'<span style=\"background:'+c+';color:#fff;border-radius:3px;padding:1px 6px;font-size:10px\">'+z+'</span><br/><br/>'"
-            "+'Antal: <b>'+n+'</b> / 290 ('+pct+'\\u202f%)';}"
+            f"lo>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk_text']}';"
+            "return '<b>KRI '+f(lo,2)+' - '+f(hi,2)+'</b><br/>'"
+            "+'<span style=\"color:'+c+';font-weight:600\">'+z+'</span><br/>'"
+            "+'Antal: <b>'+n+'</b> av '+tot+' ('+pct+'\\u202f%)';}"
         ),
     }
     base["xAxis"] = {
@@ -143,34 +170,25 @@ def build_distribution_histogram(
         "name": "KRI Poäng",
         "nameLocation": "middle",
         "nameGap": 36,
-        "nameTextStyle": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 11,
-            "fontFamily": "Source Sans Pro",
-            "fontWeight": 600,
-        },
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11, "fontWeight": 600},
         **get_axis_style("category"),
     }
     base["xAxis"]["axisLabel"] = {
         **base["xAxis"].get("axisLabel", {}),
         "interval": 3,
+        "formatter": _js("function(v){" + _JS_FMT + "return f(parseFloat(v),2);}"),
     }
     base["yAxis"] = {
         "type": "value",
         "name": "Antal kommuner",
-        "nameTextStyle": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 11,
-            "fontFamily": "Source Sans Pro",
-            "fontWeight": 600,
-            "padding": [0, 0, 10, 0],
-        },
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11, "fontWeight": 600, "padding": [0, 0, 10, 0]},
         **get_axis_style("value"),
     }
     base["yAxis"]["axisLine"] = {"show": False}
     base["series"] = [
         {
             "type": "bar",
+            "name": "Antal kommuner",
             "data": bar_data,
             "barWidth": "85%",
             "markLine": {
@@ -180,7 +198,6 @@ def build_distribution_histogram(
                     "color": COLORS["primary"],
                     "fontSize": 10,
                     "fontWeight": 600,
-                    "fontFamily": "Source Sans Pro",
                     "position": "insideEndTop",
                 },
                 "lineStyle": {"color": COLORS["primary"], "width": 1.5, "type": "dashed"},
@@ -209,30 +226,33 @@ def build_distribution_histogram(
     return base
 
 
+def _sign_color(v: float) -> str:
+    """Contribution colour by sign: adds risk = red, reduces risk = green, ~0 = grey."""
+    if v > 0.01:
+        return COLORS["high_risk"]
+    if v < -0.01:
+        return COLORS["low_risk"]
+    return COLORS["text_tertiary"]
+
+
 def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[str, Any]:
-    """Horizontal bars for one municipality's KRI contributions (Swedish labels)."""
-    palette = [
-        COLORS["primary"],
-        COLORS["secondary"],
-        COLORS["accent"],
-        COLORS["primary_light"],
-        COLORS["low_risk"],
-    ]
+    """Horizontal bars for one municipality's KRI contributions (Swedish labels).
+
+    Colour encodes the sign (does the factor raise or lower risk?), and every bar
+    carries its signed value so the meaning never depends on colour alone.
+    """
     sorted_items = sorted(contributions.items(), key=lambda x: x[1], reverse=True)
     cats = [k for k, _ in sorted_items]
     vals = [v for _, v in sorted_items]
 
-    series_data: list[dict[str, Any]] = []
-    for i, v in enumerate(vals):
-        series_data.append(
-            {
-                "value": v,
-                "itemStyle": {
-                    "color": palette[i % len(palette)],
-                    "borderRadius": [0, 2, 2, 0],
-                },
-            }
-        )
+    series_data: list[dict[str, Any]] = [
+        {
+            "value": v,
+            "itemStyle": {"color": _sign_color(v), "borderRadius": [0, 2, 2, 0]},
+            "label": {"position": "right" if v >= 0 else "left"},
+        }
+        for v in vals
+    ]
 
     base = copy.deepcopy(get_echarts_base_options())
     base["grid"] = {"left": 150, "right": 70, "top": 30, "bottom": 50, "containLabel": True}
@@ -241,19 +261,26 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
         "trigger": "axis",
         "axisPointer": {"type": "shadow"},
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "if(!p||!p.length)return '';"
             "var x=p[0],d=x.data;"
             "var v=(d&&typeof d==='object'&&'value' in d)?d.value:(typeof x.value==='number'?x.value:0);"
-            "var s=(v>=0?'+':'')+v.toFixed(3).replace('.',',');"
             "var dir=v>0.01?'\\u25b2 \\u00d6kar risk':v<-0.01?'\\u25bc Minskar risk':'Neutral';"
-            "var dc=v>0.01?'#B94A48':v<-0.01?'#2E7D5B':'#6B7280';"
+            f"var dc=v>0.01?'{COLORS['high_risk']}':v<-0.01?'{COLORS['low_risk']}':'{_MUTED}';"
             "return '<b>'+x.name+'</b><br/>'"
-            "+'Bidrag: <b>'+s+' po\\u00e4ng</b><br/>'"
+            "+'Bidrag: <b>'+s(v,3)+' po\\u00e4ng</b><br/>'"
             "+'<span style=\"color:'+dc+'\">'+dir+'</span>';}"
         ),
     }
-    base["xAxis"] = {**get_axis_style("value"), "type": "value", "name": "Bidrag till KRI"}
+    base["xAxis"] = {
+        **get_axis_style("value"),
+        "type": "value",
+        "name": "Bidrag till KRI",
+        "nameLocation": "middle",
+        "nameGap": 28,
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11},
+    }
+    base["xAxis"]["axisLabel"] = {**base["xAxis"]["axisLabel"], "formatter": _axis_number_formatter()}
     base["yAxis"] = {
         **get_axis_style("category"),
         "type": "category",
@@ -261,7 +288,20 @@ def build_horizontal_contribution_bar(contributions: dict[str, float]) -> dict[s
         "inverse": True,
     }
     base["yAxis"]["splitLine"] = {"show": False}
-    base["series"] = [{"type": "bar", "data": series_data, "barWidth": "60%"}]
+    base["series"] = [
+        {
+            "type": "bar",
+            "name": "Bidrag till KRI",
+            "data": series_data,
+            "barWidth": "60%",
+            "label": {
+                "show": True,
+                "fontSize": 11,
+                "color": _TXT,
+                "formatter": _js("function(p){" + _JS_FMT + "return s(p.value,2);}"),
+            },
+        }
+    ]
     return base
 
 
@@ -281,26 +321,24 @@ def build_radar(
     widest = max(plotted) if plotted else 0.0
     axis_max = max(RADAR_MIN_EXTENT, math.ceil(widest * 2) / 2)
     ind = [{"name": n, "max": axis_max, "min": -axis_max} for n in indicators]
-    # Build indicator names JS array for tooltip
-    ind_js = "[" + ",".join(f'"{n}"' for n in indicators) + "]"
+    ind_js = json.dumps(indicators, ensure_ascii=False)
     base = copy.deepcopy(get_echarts_base_options())
     base.pop("grid", None)
     base["tooltip"] = {
         **get_tooltip_style(),
         "trigger": "item",
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "var ind=" + ind_js + ";"
             "var v=p.value||[];"
             "var nm=p.seriesName||p.name||'';"
             "var o='<b>'+nm+'</b><br/>';"
             "for(var i=0;i<ind.length;i++){"
             "var val=typeof v[i]==='number'?v[i]:0;"
-            "var s=(val>=0?'+':'')+val.toFixed(2).replace('.',',');"
-            "var c=val>0.5?'#B94A48':val<-0.5?'#2E7D5B':'#D4A03C';"
-            "if(nm==='Rikssnitt')c='#9CA3AF';"
-            "o+='<span style=\"color:#6B7280\">'+ind[i]+'</span> '"
-            "+'<b style=\"color:'+c+'\">'+s+'</b><br/>';}"
+            f"var c=val>0.5?'{COLORS['high_risk']}':val<-0.5?'{COLORS['low_risk']}':'{COLORS['medium_risk_text']}';"
+            f"if(nm==='Rikssnitt')c='{_MUTED}';"
+            f"o+='<span style=\"color:{_MUTED}\">'+ind[i]+'</span> '"
+            "+'<b style=\"color:'+c+'\">'+s(val,2)+'</b><br/>';}"
             "return o;}"
         ),
     }
@@ -309,26 +347,25 @@ def build_radar(
         "radius": "65%",
         "splitLine": {"lineStyle": {"color": COLORS["grid"]}},
         "splitArea": {"show": False},
-        "axisName": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 10,
-            "fontFamily": "Source Sans Pro",
-        },
+        "axisName": {"color": _MUTED, "fontSize": 10},
     }
     base["series"] = [
         {
             "type": "radar",
+            "name": "Z-poäng",
             "symbol": "none",
             "data": [
                 {
                     "value": municipality_values,
                     "name": "Vald kommun",
+                    "itemStyle": {"color": COLORS["primary"]},
                     "lineStyle": {"color": COLORS["primary"], "width": 2},
                     "areaStyle": {"color": COLORS["primary"], "opacity": 0.25},
                 },
                 {
                     "value": national_avg,
                     "name": "Rikssnitt",
+                    "itemStyle": {"color": COLORS["accent"]},
                     "lineStyle": {"color": COLORS["accent"], "width": 2, "type": "dashed"},
                     "areaStyle": {"opacity": 0},
                 },
@@ -339,7 +376,7 @@ def build_radar(
         "data": ["Vald kommun", "Rikssnitt"],
         "top": 10,
         "right": 20,
-        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"]},
+        "textStyle": {"color": _TXT},
     }
     return base
 
@@ -352,7 +389,9 @@ def build_line_trend(
     """KRI trend lines with risk zone bands.
 
     Zone boundaries drift year to year, so *scale* should be pooled across the
-    whole period on display (see ``RiskScale.pooled``).
+    whole period on display (see ``RiskScale.pooled``). Lines are straight
+    segments between annual values: smoothing would imply observations between
+    years that do not exist.
     """
     scale = scale or RiskScale.from_scores([v for vals in series_dict.values() for v in vals])
     year_str = [str(y) for y in years]
@@ -362,18 +401,17 @@ def build_line_trend(
         "trigger": "axis",
         "axisPointer": {"type": "line", "lineStyle": {"color": COLORS["accent"], "width": 1.5, "type": "dashed"}},
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "if(!p||!p.length)return '';"
             "var o='<b>\\u00c5r '+p[0].axisValue+'</b><br/>';"
             "for(var i=0;i<p.length;i++){"
             "var v=typeof p[i].value==='number'?p[i].value:null;"
             "if(v===null||isNaN(v))continue;"
-            "var s=v.toFixed(2).replace('.',',');"
             f"var z=v<{scale.low:.4f}?'L\\u00e5g':v>{scale.high:.4f}?'H\\u00f6g':'Medel';"
             f"var c=v<{scale.low:.4f}?'{COLORS['low_risk']}':"
-            f"v>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk']}';"
+            f"v>{scale.high:.4f}?'{COLORS['high_risk']}':'{COLORS['medium_risk_text']}';"
             "o+='<span style=\"color:'+p[i].color+'\">\\u25cf</span> '"
-            "+p[i].seriesName+': <b>'+s+'</b> '"
+            "+p[i].seriesName+': <b>'+f(v,2)+'</b> '"
             "+'<span style=\"color:'+c+';font-size:11px\">('+z+')</span><br/>';}"
             "return o;}"
         ),
@@ -383,32 +421,32 @@ def build_line_trend(
         "data": list(series_dict.keys()),
         "top": 6,
         "right": 20,
-        "textStyle": {"fontFamily": "Source Sans Pro", "fontSize": 11, "color": COLORS["text_primary"]},
+        "textStyle": {"fontSize": 11, "color": _TXT},
         "type": "scroll",
         "pageIconColor": COLORS["primary"],
-        "pageTextStyle": {"color": COLORS["text_secondary"]},
+        "pageTextStyle": {"color": _MUTED},
     }
     base["xAxis"] = {
         **get_axis_style("category"),
         "type": "category",
         "data": year_str,
         "name": "År",
-        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 11},
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11},
     }
     base["yAxis"] = {
         **get_axis_style("value"),
         "type": "value",
         "name": "KRI Poäng",
-        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 11},
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11},
     }
+    base["yAxis"]["axisLabel"] = {**base["yAxis"]["axisLabel"], "formatter": _axis_number_formatter()}
     _TREND_PALETTE = [
-        COLORS["primary"],     # #0B1F3F
-        COLORS["high_risk"],   # #B94A48
-        COLORS["secondary"],   # #4A6FA5
-        COLORS["low_risk"],    # #2E7D5B
-        COLORS["accent"],      # #C4A35A
-        "#7B2D8E",             # purple
-        "#E07040",             # orange
+        COLORS["primary"],
+        INDICATOR_COLORS["debt"],
+        INDICATOR_COLORS["unemployment"],
+        INDICATOR_COLORS["dependency_ratio"],
+        INDICATOR_COLORS["tax_base"],
+        COLORS["secondary"],
     ]
     series_list: list[dict[str, Any]] = []
     color_idx = 0
@@ -424,7 +462,7 @@ def build_line_trend(
                 "name": name,
                 "type": "line",
                 "data": vals,
-                "smooth": True,
+                "smooth": False,
                 "lineStyle": {
                     "width": 2.5,
                     "color": line_color,
@@ -462,30 +500,29 @@ def build_line_trend(
 def build_grouped_bars_comparison(
     municipalities: list[str],
     components: dict[str, list[float]],
+    colors: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Grouped bars: municipalities x risk components."""
-    palette = [
-        COLORS["primary"],
-        COLORS["secondary"],
-        COLORS["accent"],
-        COLORS["low_risk"],
-        COLORS["medium_risk"],
-    ]
+    """Grouped bars: municipalities x risk components.
+
+    *colors* gives one colour per component, in the order of *components*; pass
+    the indicator palette so "Skuld" has the same colour everywhere. Defaults to
+    INDICATOR_COLORS in canonical indicator order.
+    """
+    palette = colors or [INDICATOR_COLORS[k] for k in INDICATOR_ORDER]
     base = copy.deepcopy(get_echarts_base_options())
     base["tooltip"] = {
         **get_tooltip_style(),
         "trigger": "axis",
         "axisPointer": {"type": "shadow"},
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "if(!p||!p.length)return '';"
             "var o='<b>'+p[0].axisValue+'</b><br/>',t=0;"
             "for(var i=0;i<p.length;i++){"
             "var v=typeof p[i].value==='number'?p[i].value:0;t+=v;"
-            "var s=(v>=0?'+':'')+v.toFixed(3).replace('.',',');"
             "o+='<span style=\"color:'+p[i].color+'\">\\u25a0</span> '"
-            "+p[i].seriesName+': <b>'+s+'</b><br/>';}"
-            "o+='<br/><b>KRI totalt: '+(t>=0?'+':'')+t.toFixed(2).replace('.',',')+'</b>';"
+            "+p[i].seriesName+': <b>'+s(v,3)+'</b><br/>';}"
+            "o+='<br/><b>KRI totalt: '+s(t,2)+'</b>';"
             "return o;}"
         ),
     }
@@ -493,32 +530,31 @@ def build_grouped_bars_comparison(
     base["legend"] = {
         "data": list(components.keys()),
         "top": 10,
-        "textStyle": {"fontFamily": "Source Sans Pro", "color": COLORS["text_primary"], "fontSize": 11},
+        "textStyle": {"color": _TXT, "fontSize": 11},
         "type": "scroll",
     }
     base["xAxis"] = {
         **get_axis_style("category"),
         "type": "category",
         "data": municipalities,
-        "axisLabel": {"rotate": 20, "fontSize": 11, "overflow": "truncate", "width": 120},
+        "axisLabel": {"rotate": 20, "fontSize": 11, "overflow": "truncate", "width": 120, "color": _MUTED},
     }
     base["yAxis"] = {
         **get_axis_style("value"),
         "type": "value",
         "name": "Bidrag till KRI",
-        "nameTextStyle": {"color": COLORS["text_secondary"], "fontSize": 11},
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11},
     }
-    series: list[dict[str, Any]] = []
-    for i, (comp_name, vals) in enumerate(components.items()):
-        series.append(
-            {
-                "name": comp_name,
-                "type": "bar",
-                "data": vals,
-                "itemStyle": {"color": palette[i % len(palette)]},
-            }
-        )
-    base["series"] = series
+    base["yAxis"]["axisLabel"] = {**base["yAxis"]["axisLabel"], "formatter": _axis_number_formatter()}
+    base["series"] = [
+        {
+            "name": comp_name,
+            "type": "bar",
+            "data": vals,
+            "itemStyle": {"color": palette[i % len(palette)]},
+        }
+        for i, (comp_name, vals) in enumerate(components.items())
+    ]
     return base
 
 
@@ -534,6 +570,7 @@ def build_raw_indicator_histogram(
     """
     if not values:
         return {}
+    total = len(values)
     lo = min(values)
     hi = max(values) + 1e-9
     step = (hi - lo) / n_bins
@@ -545,14 +582,14 @@ def build_raw_indicator_histogram(
 
     def _fmt_k(v: float) -> str:
         if abs(v) >= 1_000_000:
-            return f"{v / 1_000_000:.1f}M"
+            return f"{v / 1_000_000:.1f}".replace(".", ",") + " M"
         if abs(v) >= 1_000:
-            return f"{v / 1_000:.0f}k"
-        return f"{v:.1f}"
+            return f"{v / 1_000:.0f} k"
+        return f"{v:.1f}".replace(".", ",")
 
     categories = [_fmt_k(edges[i]) for i in range(n_bins)]
     bar_data = [
-        {"value": c, "itemStyle": {"color": COLORS["secondary"], "borderRadius": [2, 2, 0, 0]}}
+        {"value": c, "itemStyle": {"color": INDICATOR_COLORS["debt"], "borderRadius": [2, 2, 0, 0]}}
         for c in counts
     ]
 
@@ -564,17 +601,15 @@ def build_raw_indicator_histogram(
         **get_tooltip_style(),
         "trigger": "axis",
         "formatter": _js(
-            "function(p){"
+            "function(p){" + _JS_FMT +
             "var e=" + edges_js + ";"
             "if(!p||!p.length)return '';"
             "var x=p[0],i=x.dataIndex;"
             "var lo=e[i],hi=e[i+1];"
-            "var f=function(v){if(Math.abs(v)>=1e6)return(v/1e6).toFixed(1).replace('.',',')+' M';"
-            "if(Math.abs(v)>=1e3)return Math.round(v/1e3)+'k';return v.toFixed(0);};"
             "var d=x.data,n=(d&&typeof d==='object'&&'value' in d)?d.value:(typeof x.value==='number'?x.value:0);"
-            "var pct=(n/290*100).toFixed(1).replace('.',',');"
-            "return '<b>" + label + ": '+f(lo)+' \\u2013 '+f(hi)+' " + unit + "</b><br/>'"
-            "+'Antal: <b>'+n+'</b> / 290 ('+pct+'\\u202f%)';}"
+            f"var tot={total};"
+            "return '<b>" + label + ": '+f(lo,0)+' - '+f(hi,0)+' " + unit + "</b><br/>'"
+            "+'Antal: <b>'+n+'</b> av '+tot+' ('+f(n/tot*100,1)+'\\u202f%)';}"
         ),
     }
     base["xAxis"] = {
@@ -584,26 +619,15 @@ def build_raw_indicator_histogram(
         "name": f"{label} ({unit})",
         "nameLocation": "middle",
         "nameGap": 36,
-        "nameTextStyle": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 11,
-            "fontFamily": "Source Sans Pro",
-            "fontWeight": 600,
-        },
-        "axisLabel": {"interval": max(0, n_bins // 8 - 1), "rotate": 30, "fontSize": 10},
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11, "fontWeight": 600},
+        "axisLabel": {"interval": max(0, n_bins // 8 - 1), "rotate": 30, "fontSize": 10, "color": _MUTED},
     }
     base["yAxis"] = {
         **get_axis_style("value"),
         "type": "value",
         "name": "Antal kommuner",
-        "nameTextStyle": {
-            "color": COLORS["text_secondary"],
-            "fontSize": 11,
-            "fontFamily": "Source Sans Pro",
-            "fontWeight": 600,
-            "padding": [0, 0, 10, 0],
-        },
+        "nameTextStyle": {"color": _MUTED, "fontSize": 11, "fontWeight": 600, "padding": [0, 0, 10, 0]},
         "axisLine": {"show": False},
     }
-    base["series"] = [{"type": "bar", "data": bar_data, "barWidth": "85%"}]
+    base["series"] = [{"type": "bar", "name": "Antal kommuner", "data": bar_data, "barWidth": "85%"}]
     return base

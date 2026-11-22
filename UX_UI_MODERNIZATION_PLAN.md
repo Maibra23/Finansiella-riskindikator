@@ -3,7 +3,7 @@
 **Product:** Kommunal Finansiell Riskindikator (KRI), Streamlit dashboard
 **Baseline audited:** branch `master` @ `f1f1d96` (2026-10-25), identical to `origin/master`
 **Plan date:** 2026-11-17
-**Status:** PROPOSAL, awaiting approval. No source files have been modified.
+**Status:** IMPLEMENTED 2026-11-22 (P0 + P1, plus T13, T14, T16 and the year part of T17), uncommitted for owner review. Results: `docs/ux-modernization-report.md`. Note: views now live in `app/views/` (not `app/pages/`), see the report.
 
 > Branch check performed before the audit:
 > - `master` = `origin/master` (`f1f1d96`) is the latest version.
@@ -19,6 +19,26 @@
 - Items marked **⚠ REVIEW** change observable behaviour, not only appearance. Each is listed in §A10 and must be explicitly approved, rejected, or modified before implementation.
 - File references use `path:line` against `f1f1d96`.
 
+## A0. Removed from this plan: pre-modernization fixes (2026-11-21)
+
+A browser audit on 2026-11-21 found defects that were fixed **before** the modernization starts, on the current page structure. They are no longer part of this plan's scope. The following IDs are retired; text elsewhere in this document no longer refers to them as open work:
+
+| Retired ID | Problem | Fix applied before modernization |
+|---|---|---|
+| U1 / R1 | Kommunanalys KPI deltas: arrow encoded good/bad instead of direction; rank treated as "higher is worse" | Arrow = sign of change, colour = desirability (rank: higher number = better), Swedish delta text with unit |
+| U5 | Mixed decimal separators | Kommunanalys KPI cards, summary strips (Kommunanalys, Riskdekomposition) and both Kommunanalys tables use decimal comma |
+| U12 / R8 | "73 - 290" read as a range | Startsida shows "73 av 290" |
+| U14 | Six KPI cards in one row broke below ~1100 px | Kommunanalys KPI cards in a 3 × 2 grid |
+| R7 (and the date part of U13) | Hardcoded "Senast uppdaterad 2024-12-31" | Sidebar footer reads "Data 2010 - 2024" |
+| (shell) | Sidebar could not be collapsed or re-opened: forced `width: 260px !important`, hidden header hid Streamlit's toggle, `collapsedControl` selector no longer exists in 1.67 | Forced width removed, native collapse/expand controls restored |
+| (new) | Blank page without sidebar or theme on a cold first visit (heavy imports ran before anything rendered) | Theme and sidebar render before heavy imports on every page |
+| (new) | Kommunanalys KPI card colours hardcoded (debt always red, tax base always green) | Card accent follows the kommun's own contribution to KRI |
+| (new) | Wording: N03937 described as an unemployment rate / wrong KPI text on Källor; "exactly 25 %"; framing as "finansiell" | Labels, Källor text, README and methodology corrected |
+
+**Baseline change.** Modernization must start from the commit that contains these fixes (merged to `master`), not from `f1f1d96`, otherwise they are lost. The tag is therefore `ux-baseline` on that commit. `path:line` references below were written against `f1f1d96`; files touched in §A0 (`main.py`, all four pages, `theme.py`) have shifted lines, so locate code by function or string, not by line number. The Kommunanalys CSV header for unemployment changed to "Öppet arbetslösa (% av 18-65 år)" in §A0; the CSV golden test in T07 must be generated from `ux-baseline`.
+
+Still in scope here: the `st.metric` migration in T05 (accessibility, sparklines, keyboard help), the formatting module T01 (consolidation, now a refactor rather than a bug fix), and everything else.
+
 ---
 
 # PART A: UX/UI MODERNIZATION PROPOSAL
@@ -33,7 +53,7 @@ The visual identity (navy + gold, "banking / public-sector analytics") is approp
 
 ### Main UX/UI weaknesses (ranked by impact)
 
-1. **Inconsistent and partly wrong financial signalling.** Kommunanalys inverts the KPI delta colour/arrow: a worsening KRI shows a **green ▼** (`app/pages/kommunanalys.py:199-214` combined with `.delta-down` = green in `app/styles/theme.py:320-325`). Riksöversikt uses the opposite convention. Decimal separators switch between `0,42` (Startsida/Riksöversikt) and `0.42` (Kommunanalys/Riskdekomposition).
+1. **Inconsistent financial signalling.** KPI cards are hand-built HTML with per-page delta code and number formatting scattered across pages (the delta and decimal-separator bugs themselves were fixed before this plan, see §A0).
 2. **The shell is copy-pasted five times.** Sidebar brand, navigation, year pills, risk legend and footer are duplicated in every page file (~40 - 90 lines each). This causes real defects: returning to **Startsida resets the selected year and the risk filter** (`app/main.py:103-110, 132-139` ignore `session_state`). Riskdekomposition does not remember the selected municipality, while Kommunanalys does.
 3. **Controls that do nothing or lie.** The risk filter on Startsida has no effect on any visible content. On Riksöversikt, the map's help text says the map "always shows the selected year's data", but the code passes the *filtered* frame: filtered-out municipalities are painted as if KRI = 0 (neutral grey), and the colour breakpoints are recomputed from the filtered subset, so they no longer match the risk classes (`app/pages/riksoversikt.py:393`, `app/components/sweden_choropleth.py:113, 119`).
 4. **False affordances and hidden actions.** Landing "Vad hittar du här?" cards look clickable (hover shadow) but are not links. Step cards also lift on hover. The CSV and PDF exports, the only "output" actions in the product, are buried in a collapsed expander at the bottom of Kommunanalys.
@@ -88,13 +108,12 @@ scripts/verify_swedish_ui.py  AST checker: no English, no en/em dash, no "a / b"
 
 ### A2.2 Navigation (as built)
 
-Sidebar (dark navy, fixed 260 px): brand block → "Navigation" → Startsida, Riksöversikt, Riskdekomposition, Kommunanalys, Källor → "Välj år" pills → (Startsida, Riksöversikt only) risk legend + "Filtrera riskklass" pills → source footer ("Senast uppdaterad 2024-12-31", which is a hardcoded string, not a data vintage).
+Sidebar (dark navy, collapsible): brand block → "Navigation" → Startsida, Riksöversikt, Riskdekomposition, Kommunanalys, Källor → "Välj år" pills → (Startsida, Riksöversikt only) risk legend + "Filtrera riskklass" pills → source footer ("Data 2010 - 2024").
 
 Issues:
 - Order puts **Riskdekomposition before Kommunanalys**, although the natural journey is national → one municipality → why. Both are municipality-level views but are not grouped.
 - No breadcrumbs or "you are here" beyond link highlight. The page eyebrows are inconsistent ("Sida 01 · Nationell översikt", "Analysverktyg", "Kommunanalys" (duplicates the title), "KRI · Kommunal Finansiell Riskindikator").
 - Riskdekomposition's footer block is missing (documented in `docs/ux-ui-design-system.md` §5.5).
-- Global Streamlit header is hidden with CSS. The sidebar re-open control is rescued with a `collapsedControl` test-id selector, which is a known fragility across Streamlit versions.
 
 ### A2.3 Visual identity (as built)
 
@@ -111,10 +130,10 @@ Issues:
 | Page header | `render_page_header()` HTML | all 4 sub-pages | `Analysår` meta shown on Källor with "2010 - 2024" (not a year) |
 | Card header | `render_card_header()` HTML | all sub-pages | Tag chips ("Histogram", "Rankning", "Tidserie") add noise, not information |
 | KPI card | `render_kpi_card()` HTML + `title` tooltip | Riksöversikt (4), Kommunanalys (6) | tooltip inaccessible; delta semantics differ per page |
-| Summary strip | inline HTML f-strings | Riskdekomposition, Kommunanalys | duplicated, different designs, `.` decimals, white-on-amber badge |
+| Summary strip | inline HTML f-strings | Riskdekomposition, Kommunanalys | duplicated, different designs, white-on-amber badge |
 | Bordered container | `st.container(border=True)` + CSS override | Riksöversikt, Startsida | CSS forces padding/radius on an internal test-id |
 | HTML table | `_table_html()` + `.kri-table` | Riksöversikt (top/bottom 15) | not sortable; fine for top-15 |
-| Data table | `st.dataframe` + pandas Styler | Kommunanalys, Källor | colour-only extremes; `.` decimals; "Avstånd" unexplained |
+| Data table | `st.dataframe` + pandas Styler | Kommunanalys, Källor | colour-only extremes; "Avstånd" unexplained |
 | Explanations | `st.expander` + `st.caption` | Riksöversikt (4 expanders), Källor | four expanders stacked under charts, help far from the thing it explains |
 | Charts | `st_echarts` + builders | 3 pages | `smooth: true` on annual data; contribution bar colours encode nothing (position-based palette); hardcoded "/ 290" in tooltips |
 | Map | Folium + `st_folium(returned_objects=[])` | Riksöversikt | filter/scale defect (see A1) |
@@ -131,20 +150,16 @@ Issues:
 
 | ID | Problem | Evidence | Severity |
 |---|---|---|---|
-| U1 | KPI delta colour/arrow inverted on Kommunanalys | `kommunanalys.py:199-214` | Critical (misinforms) |
 | U2 | Year/filter reset when visiting Startsida | `main.py:103-110,132-139` | High |
 | U3 | Map paints filtered-out kommuner as KRI 0 and rescales breakpoints | `riksoversikt.py:393`, `sweden_choropleth.py:113,119`; contradicts copy at `riksoversikt.py:403-404` | High |
 | U4 | Riksöversikt KPI deltas compare a filtered current year with an unfiltered previous year | `riksoversikt.py:222-277` | High (misleading when filtered) |
-| U5 | Mixed decimal separators | `kommunanalys.py:186,233,252`, `riskdekomposition.py:200` | High (trust) |
 | U6 | Risk filter on Startsida has no effect | `main.py:132-156` vs landing stats `main.py:176-184` | Medium |
 | U7 | Landing nav cards look clickable but are not | `theme.py:891-903`, `main.py:269-304` | Medium |
 | U8 | Exports hidden in collapsed expander; PDF not cached | `kommunanalys.py:480-517` | Medium |
 | U9 | Contrast failures (gold text, tertiary text, white on amber) | measured: 2.40, 2.54, 2.36 | Medium (AA fail) |
 | U10 | KPI help only via `title` attribute | `theme.py:1109-1112` | Medium |
 | U11 | Riskdekomposition does not reuse selected kommun | `riskdekomposition.py:166-173` | Medium |
-| U12 | "Kommuner med hög risk: 73 - 290" reads like a range | `main.py:205-206` | Low |
-| U13 | Hardcoded "290", "2010 - 2024", "Senast uppdaterad 2024-12-31" | several | Low |
-| U14 | Six KPI cards in one row; long uppercase labels wrap badly below ~1300 px | `kommunanalys.py:228` | Low |
+| U13 | Hardcoded "290" and "2010 - 2024" | several | Low |
 | U15 | Hover lift on non-interactive step cards | `theme.py:842-845` | Low |
 | U16 | Histogram tooltip divides by 290 even when filtered | `charts.py:131` | Low |
 | U17 | Trend lines smoothed (`smooth: true`), implying intra-year values | `charts.py:427` | Low (analytic honesty) |
@@ -164,7 +179,7 @@ Classification: **C** = core, **S** = supporting, **A** = advanced, **AD** = adm
 | F04 | Risk-class filter (multi, empty = all) | C | sidebar on Startsida + Riksöversikt | multi select | `session_state.selected_risks` | no effect on Startsida (U6); scope unclear | ⚠ Move into Riksöversikt page |
 | F05 | Risk legend (dots) | S | sidebar | read | — | duplicated hex | Move with F04 |
 | F06 | Landing hero + lead | S | `main.py:186-194` | read | `theme.render_landing_hero` | gradient; no CTA | Restyle, add CTAs |
-| F07 | Landing stat strip (KRI interval, high-risk count, period, N) | S | `main.py:196-222` | read (year-aware) | F03 | "73 - 290" ambiguity | ⚠ wording |
+| F07 | Landing stat strip (KRI interval, high-risk count, period, N) | S | `main.py:196-222` | read (year-aware) | F03 | — | Restyle |
 | F08 | "Vad är KRI?" explanation | S | `main.py:224-239` | read | — | — | Layout only |
 | F09 | Index weights bars + flow SVG | S | `landing_visuals.py` | read | `WEIGHTS` | — | Keep |
 | F10 | "Så fungerar det" 3 steps | S | `main.py:243-267` | read | — | false hover affordance | Remove hover |
@@ -178,12 +193,12 @@ Classification: **C** = core, **S** = supporting, **A** = advanced, **AD** = adm
 | F18 | Uncertainty column (rank p05 - p95 or "gränsfall"), robustness subtitle | A / X | `riksoversikt.py:460-518` | read | `kri_sensitivity.parquet` (optional) | — | Keep; must still degrade silently when file absent |
 | F19 | Explanatory expanders: map, distribution, rankings, uncertainty | S | `riksoversikt.py:394-551` | expand | — | far from content | Move into per-card help popovers |
 | F20 | Municipality selector (persisted) | C | `kommunanalys.py:140-151` | searchable select | `session_state.selected_municipality` | — | Share with F27 |
-| F21 | Summary strip (risk class, KRI, rank, uncertainty) | C | `kommunanalys.py:180-192` | read | F18 | `.` decimals, white-on-amber | Shared component |
-| F22 | Six KPI cards with YoY deltas | C | `kommunanalys.py:228-277` | read | — | U1, U14 | Yes |
+| F21 | Summary strip (risk class, KRI, rank, uncertainty) | C | `kommunanalys.py:180-192` | read | F18 | white-on-amber | Shared component |
+| F22 | Six KPI cards (3 × 2) with YoY deltas | C | `kommunanalys.py` | read | — | U10 | Yes |
 | F23 | Weight-sensitivity sentence (robust / gränsfall) | A / X | `kommunanalys.py:285-302` | read | F18 | buried as caption | Callout |
 | F24 | KRI trend vs Rikssnitt with risk bands | C | `kommunanalys.py:310-328` | hover | `RiskScale.pooled` | hardcoded years, smooth | Minor |
 | F25 | 10 most similar kommuner (peer table, extremes highlighted) | A | `kommunanalys.py:336-414` | read | `clustering.get_peer_municipalities` | colour-only, "Avstånd" | Legend + help |
-| F26 | Full history table (all years) with extremes highlighted | C | `kommunanalys.py:422-467` | read, sort, scroll | — | `.` decimals | Formatting |
+| F26 | Full history table (all years) with extremes highlighted | C | `kommunanalys.py:422-467` | read, sort, scroll | — | — | Restyle |
 | F27 | CSV export (municipality history; `;` and `,` decimal, UTF-8 BOM) | C | `kommunanalys.py:469-496` | download | — | hidden in expander | Promote |
 | F28 | National PDF report for selected year | C | `kommunanalys.py:498-517` | two-step button | `src/report_gen.generate_report` | hidden; regenerated each time; scope (national) on a municipality page | Promote, cache, ⚠ also expose on Riksöversikt |
 | F29 | Data quality: flags + completeness metrics + missing per variable | S | `kommunanalys.py:519-555` | read | `validators.get_municipality_flags` | inside export expander | Own section |
@@ -292,14 +307,14 @@ Risk-class filter: removed from the sidebar and placed in a **filter bar at the 
 
 ### A6.0 Application shell (all pages)
 
-**Current:** duplicated sidebar per file; header hidden via CSS; 1 480 px max width; 260 px forced sidebar width.
+**Current:** duplicated sidebar per file; header chrome hidden via CSS (native sidebar collapse/expand controls kept visible, see §A0); 1 480 px max width.
 
 **Proposed:**
 - `app/main.py` becomes a ~60-line router: `apply_streamlit_theme()` → `load_kri_data()` → `render_sidebar()` → `pg.run()`.
 - Landing content moves to `app/pages/startsida.py` (new file, content unchanged except §A6.1).
 - `app/ui/shell.py` (new): `render_sidebar(pages) -> int` (returns selected year), `render_page_header(...)`, `render_footer()`.
-- Remove the forced `width: 260px !important` (it fights Streamlit's resizable/mobile sidebar). Use `min-width` only.
-- Keep `#MainMenu`/`footer` hidden. Re-test the sidebar expand control on 1.67 and use the current test-id if needed (documented as a known fragile selector).
+- Keep `#MainMenu`/`footer` hidden. Keep the sidebar collapse/expand rules from §A0 intact when moving CSS.
+- Keep the render order from §A0: theme and sidebar first, heavy imports (ECharts, Folium, scikit-learn) after, so a cold first visit never shows a blank page.
 
 **Must remain unchanged:** page URLs, page titles, About menu text, data error message when parquet is missing.
 
@@ -307,12 +322,12 @@ Risk-class filter: removed from the sidebar and placed in a **filter bar at the 
 
 **Current layout:** gradient hero → 4-cell stat strip → "Vad är KRI?" → index weights + flow SVG → 3 steps with arrows → bordered panel with 3 non-clickable cards → credibility strip.
 
-**Problems:** U6, U7, U12, U15; long vertical scroll at 1440×900 (≈4 screens); gradient hero; duplicated credibility/footer.
+**Problems:** U6, U7, U15; long vertical scroll at 1440×900 (≈4 screens); gradient hero; duplicated credibility/footer.
 
 **Proposed layout (desktop):**
 1. **Hero**, solid navy (`primary`), no gradient, padding reduced ~30 %. Eyebrow (gold on navy is 6.8:1, OK), H1, lead.
 2. **CTA row** directly below the hero: two `st.page_link` buttons styled as primary/secondary: "Öppna riksöversikten" → Riksöversikt, "Analysera en kommun" → Kommunanalys.
-3. **Stat strip** (unchanged data): `KRI-intervall {år}` `-1,37 - 1,17` · `Hög risk {år}` **`73 av 290`** (⚠ R8) · `Analysperiod` `2010 - 2024` · `Kommuner` `290`. Values in tabular sans 28 px, not mono.
+3. **Stat strip** (unchanged data): `KRI-intervall {år}` `-1,37 - 1,17` · `Hög risk {år}` **`73 av 290`** (already fixed, §A0) · `Analysperiod` `2010 - 2024` · `Kommuner` `290`. Values in tabular sans 28 px, not mono.
 4. **Two-column band** (`st.columns([1.1, 1])`): left "Vad är KRI?" text; right "Indexet i överblick" (weights + flow SVG). Stacks on narrow screens.
 5. **Steps**: three cards, no hover effect, arrows kept.
 6. **"Vad hittar du här?"**: three `st.container(border=True)` cards, each containing icon + title + description **and an `st.page_link` "Gå till {sida}"**, so the card becomes a real navigation element (F11 fix).
@@ -347,7 +362,7 @@ Risk-class filter: removed from the sidebar and placed in a **filter bar at the 
 
 **Current layout:** header → selectbox → inline summary strip → 6 KPI cards → caption → sensitivity caption → trend → peer table → history table → expander (CSV, PDF, data quality) → footer.
 
-**Problems:** U1, U5, U8, U14; summary strip uses white text on amber; exports hidden; data quality hidden inside "Dataexport".
+**Problems:** U8, U10; summary strip uses white text on amber; exports hidden; data quality hidden inside "Dataexport".
 
 **Proposed layout:**
 1. **Page header**: eyebrow "Kommun", H1 "Kommunanalys".
@@ -356,7 +371,7 @@ Risk-class filter: removed from the sidebar and placed in a **filter bar at the 
    - **Summary block** (shared component `render_kommun_summary`): risk badge (tinted background + dark text, e.g. "Hög risk"), `KRI 1,07`, `Rang 6 av 290`, `Osäkerhet 3 - 9` (when available).
    - **Actions**: `st.download_button` "Ladda ner data (CSV)" and the PDF control (same button labels as today; see §A7.7 for PDF caching).
 3. **Sensitivity callout**: the existing robust/gränsfall sentence in a bordered container with an icon (`:material/verified:` robust, `:material/warning:` gränsfall). Same text.
-4. **KPI grid** 3 × 2 (`st.columns(3)` twice), `st.metric(border=True, chart_data=<15-year series>, chart_type="line")`: KRI-poäng, Rang, Skuld per capita, Arbetslöshet, Försörjningskvot, Skattekraft (% av rikssnitt). Deltas fixed (**⚠ R1**): arrow follows the sign of the change; colour follows good/bad (`delta_color="inverse"` where higher is worse; `normal` for skattekraft and rang). Values in Swedish format. The explanatory caption stays below the grid.
+4. **KPI grid** 3 × 2 (`st.columns(3)` twice), `st.metric(border=True, chart_data=<15-year series>, chart_type="line")`: KRI-poäng, Rang, Skuld per capita, Arbetslöshet, Försörjningskvot, Skattekraft (% av rikssnitt). Keep the delta rule already in place (§A0, §A7.5): arrow follows the sign of the change; colour follows good/bad (`delta_color="inverse"` where higher is worse; `normal` for skattekraft and rang). Values in Swedish format. The explanatory caption stays below the grid.
 5. **Trend card**: title "KRI-trend {first} - {last}" from data (U13), lines unsmoothed (**⚠ R9**).
 6. **Peer table card**: same columns, Swedish number formats; `column_config` help for "Avstånd" ("Euklidiskt avstånd mellan kommunernas fem z-poäng; lägre = mer lik"); caption legend "Rött = sämst i kolumnen, grönt = bäst" so the meaning is stated in text.
 7. **History table card**: same, Swedish formats.
@@ -371,7 +386,7 @@ Risk-class filter: removed from the sidebar and placed in a **filter bar at the 
 
 **Current layout:** header → selectbox (sorted by rank, default rank 1) | inline KPI card → contribution bar | radar → compare multiselect → grouped bars → multi trend → footer.
 
-**Problems:** U11, U17, U18; inline HTML card duplicates Kommunanalys strip with different design; `.` decimals; hardcoded "2010 - 2024".
+**Problems:** U11, U17, U18; inline HTML card duplicates Kommunanalys strip with different design; hardcoded "2010 - 2024".
 
 **Proposed layout:**
 1. Header (eyebrow "Kommun", H1 "Riskdekomposition").
@@ -582,7 +597,7 @@ Pure functions with unit tests: `fmt_decimal(v, nd)`, `fmt_int(v)`, `fmt_signed(
 | F04 Risk filter | sidebar (Startsida, Riksöversikt) | Riksöversikt filter bar | Yes on Riksöversikt; ⚠ R4 removed from Startsida (had no effect) | Low |
 | F05 Risk legend | sidebar HTML | dots inside filter options + map legend | Yes | Low |
 | F06 - F10 Landing content | HTML helpers | restyled, two-column band | Yes | Low |
-| F07 Stat strip | "73 - 290" | ⚠ R8 "73 av 290" | Yes | Low |
+| F07 Stat strip | "73 av 290" (fixed, §A0) | restyled | Yes | Low |
 | F11 Landing cards | visual only | real `st.page_link` | Improved | Low |
 | F12 Credibility | landing strip | global footer | Yes | Low |
 | F13 Riksöversikt KPIs | HTML cards, title tooltips | `st.metric` + `help`; ⚠ R3 like-for-like deltas; ⚠ R13 drop "std" unit | Yes | Medium |
@@ -592,10 +607,10 @@ Pure functions with unit tests: `fmt_decimal(v, nd)`, `fmt_int(v)`, `fmt_signed(
 | F19 Explanations | 4 expanders | 2 popovers in card headers (same text) | Yes | Low |
 | F20/F30 Kommun selection | separate, one persisted | shared `selected_municipality` (⚠ R6) | Yes | Low |
 | F21/F30 Summary | two inline HTML variants | one shared component | Yes | Low |
-| F22 Kommun KPIs | HTML cards, inverted deltas | `st.metric` + sparkline; ⚠ R1 correct colours | Yes, corrected | Medium |
+| F22 Kommun KPIs | HTML cards, 3 × 2, correct deltas (§A0) | `st.metric` + sparkline, same delta rule | Yes | Medium |
 | F23 Sensitivity sentence | caption | callout, same text | Yes | Low |
 | F24/F34 Trends | smooth lines | ⚠ R9 straight lines, dynamic title | Yes | Low |
-| F25 - F26 Tables | Styler, `.` decimals | Swedish formats, legend, help | Yes | Low |
+| F25 - F26 Tables | Styler, decimal comma | legend, help | Yes | Low |
 | F27 CSV | in expander | visible action row; same file format and name | Yes | Low |
 | F28 PDF | in expander, uncached | visible, cached; ⚠ R12 also on Riksöversikt | Yes | Low |
 | F29 Data quality | inside export expander | own expander | Yes | Low |
@@ -610,14 +625,11 @@ Pure functions with unit tests: `fmt_decimal(v, nd)`, `fmt_int(v)`, `fmt_signed(
 
 | ID | Change | Why | Behaviour affected | Safer alternative |
 |---|---|---|---|---|
-| **R1** | Fix Kommunanalys KPI delta colour/arrow | Worsening shows green ▼ today | Arrow/colour of 6 KPIs | none; current output is wrong |
 | **R2** | Map: unfiltered colour scale; out-of-filter kommuner greyed with "Ej i urvalet" | Today they are painted as KRI 0 and breakpoints drift from risk classes, contradicting the help text | Map look when a filter is active | Make the map ignore the filter entirely (matches today's help text) |
 | **R3** | Riksöversikt deltas compare like with like when filtered | Today: filtered 2024 vs unfiltered 2023 | Delta values only when a filter is active | Hide deltas while a filter is active |
 | **R4** | Risk filter moves from sidebar into Riksöversikt page; removed from Startsida | It only affects Riksöversikt; on Startsida it did nothing | Location of the control | Keep it in the sidebar but show it only on Riksöversikt |
 | **R5** | Nav order (Kommunanalys before Riskdekomposition), sections, label "Källor och metod" | Matches journey; groups municipality views | Sidebar order/labels (URLs unchanged) | Keep order and labels; add sections only |
 | **R6** | Riskdekomposition remembers the shared kommun | Continuity between kommun pages | Default selection when arriving from Kommunanalys | Keep default = rank 1 |
-| **R7** | Sidebar footer: replace "Senast uppdaterad 2024-12-31" | It is a hardcoded, misleading date (data rebuilt 2026-10-21) | Footer text | Use "Data 2010 - 2024" only. **Need your preferred wording/date.** |
-| **R8** | "73 - 290" → "73 av 290" | Dash reads as a range; "av" passes the Swedish-copy checker | Copy | Keep as is |
 | **R9** | Trend lines unsmoothed | Smoothing implies values between annual observations | Line shape | Keep smoothing |
 | **R10** | Pin dependency floors (`streamlit>=1.67,<2`, `streamlit-echarts>=0.7,<0.8`) | Current floors are inconsistent; theme keys verified on 1.67 | Deploy environment | Pin exact versions |
 | **R11** | Year persists when visiting Startsida | Bug fix | Year after navigation | — |
@@ -678,7 +690,7 @@ Capacity: 5 days × ~8 h = 40 h. **P0 + P1 planned = 37 h** (≈ 8 % buffer). P2
 | T15 | P2 | Extract CSS to `app/styles/kri.css` | Maintainability | `theme.py`, `kri.css` | T12 | 2 h | Low |
 | T16 | P2 | "Öppna kommun" jump from Riksöversikt | Journey | `riksoversikt.py` | T06, T07 | 1 h | Low |
 | T17 | P3 | URL-shareable state (`st.query_params` for år/kommun) | Shareable links | shell, pages | T04 | 2 h | Medium |
-| T18 | P3 | Visual regression screenshots (Playwright) | QA automation | `tests/visual/` | needs Chrome installed | 3 h | Low |
+| T18 | P3 | Visual regression screenshots (Playwright) | QA automation | `tests/visual/` | Playwright via Edge (`PLAYWRIGHT_MCP_BROWSER=msedge`; Chrome not installed) | 3 h | Low |
 | T19 | P3 | Dark theme (`[theme.dark]`) | Preference | config, charts | T02 | 4 h | Medium |
 
 ## B3. Five-day schedule
@@ -686,7 +698,7 @@ Capacity: 5 days × ~8 h = 40 h. **P0 + P1 planned = 37 h** (≈ 8 % buffer). P2
 | Day | Theme | Tasks | Hours | Exit criteria |
 |---|---|---|---|---|
 | 1 | Foundation and design system | T00, T01, T02, T03 | 8.5 | Branch exists; smoke tests green; formatting tested; theme applied with no visual regressions beyond intended colour/typography changes |
-| 2 | Shell and navigation | T04, T05 | 8 | Single sidebar; year persists across all 5 pages; URLs unchanged; KPI component in place; R1 fixed |
+| 2 | Shell and navigation | T04, T05 | 8 | Single sidebar; year persists across all 5 pages; URLs unchanged; KPI component in place |
 | 3 | Core pages | T06, T07 | 8.5 | Riksöversikt and Kommunanalys match §A6.2/§A6.3; exports visible; map fix covered by test |
 | 4 | Remaining pages and charts | T08, T09, T10 | 7.5 | Riskdekomposition and Startsida match spec; charts unified |
 | 5 | QA and refinement | T11, T12 | 7 | Full checklist B5 passed; docs updated; final report written |
@@ -707,13 +719,13 @@ If Day 2 (T04) overruns, which is the highest-risk task, defer T09's two-column 
 TASK T00 (P0): Prepare a safe working branch and a regression harness for the KRI Streamlit dashboard.
 
 CONTEXT
-- Repo: Kommunal Finansiell Riskindikator. Streamlit app, entry app/main.py, pages in app/pages/ (riksoversikt, riskdekomposition, kommunanalys, kallor). Latest code is master @ f1f1d96.
+- Repo: Kommunal Finansiell Riskindikator. Streamlit app, entry app/main.py, pages in app/pages/ (riksoversikt, riskdekomposition, kommunanalys, kallor). Latest code is master including the §A0 pre-modernization fixes.
 - Pages use legacy pages/ multipage + st.sidebar.page_link("main.py"), so a sub-page cannot be run directly as an AppTest entrypoint; it must be reached with AppTest.switch_page from app/main.py.
 - streamlit-echarts was missing locally; streamlit-echarts 0.7.0 requires streamlit>=1.53. Installed Streamlit is 1.67.0.
 - On this Windows machine `python` is a pyenv-win batch shim: never pass ">=" on the command line (it becomes a redirect) and never use multi-line `python -c`. Use files.
 
 REQUIREMENTS
-1. git checkout master && git pull, then git checkout -b ux/modernization. Tag the baseline: git tag ux-baseline-f1f1d96 f1f1d96.
+1. git checkout master && git pull, then git checkout -b ux/modernization. Tag the baseline: git tag ux-baseline master (master must already contain the §A0 fixes).
 2. requirements.txt: change only these two lines (approved R10):
    streamlit>=1.67.0,<2
    streamlit-echarts>=0.7.0,<0.8
@@ -731,7 +743,7 @@ MUST REMAIN INTACT: all source under app/ and src/ unchanged in this task.
 TESTING: pytest must show 109+ passed (plus the new smoke tests) and 1 skipped as before; verifier PASS.
 
 ACCEPTANCE CRITERIA / DONE
-- Branch ux/modernization and tag ux-baseline-f1f1d96 exist.
+- Branch ux/modernization and tag ux-baseline exist.
 - Smoke tests pass on the unmodified app.
 - docs/ux-modernization-log.md contains the baseline numbers.
 - Commit: "ux(T00): branch baseline, pin streamlit deps, add page smoke tests".
@@ -792,7 +804,7 @@ REQUIREMENTS
    - Replace font-family IBM Plex Mono on numbers (.kpi-value, .kpi-delta, .lp-stat-value, .kri-table td.num, .rank-cell, sidebar buttons, .card-tag, .lp-step-num) with the sans stack + font-variant-numeric: tabular-nums. Keep monospace only for code.
    - Eyebrow/lp-eyebrow/lp-section-title text on LIGHT backgrounds use accent_text; gold on navy (sidebar, hero) stays accent.
    - Remove sidebar colour/link/button rules that the native [theme.sidebar] now produces; keep only what is still visibly needed (brand block, selected-pill gold fill if native primaryColor does not give it). Verify visually in a browser at 1440 px before deleting each block.
-   - Remove `width: 260px !important` on the sidebar; keep min-width 260px.
+   - Do not reintroduce a forced sidebar width or hide the native collapse/expand controls (§A0).
    - Remove hover box-shadow/border change on .lp-step (non-interactive).
    - Add a global :focus-visible outline: 2px solid COLORS["secondary"], offset 2px.
    - Risk pill .medel text uses medium_risk_text.
@@ -842,7 +854,7 @@ CONTEXT
 - Today: app/main.py = entry + landing + sidebar; each of app/pages/*.py re-renders brand, page_link list, year pills (keys main_year_pills/rv_year_pills/rd_year_pills/ka_year_pills), and (main, riksoversikt) a risk legend + risk pills. main.py ignores session_state for its pills, so visiting Startsida resets selected_year and selected_risks (bug U2).
 - Streamlit 1.67: st.navigation(pages|{section: pages}, position="sidebar"|"hidden"|"top"), st.Page(path, title=, url_path=, default=, icon=), st.page_link accepts Page objects.
 - URL paths today: "/" (main), "/riksoversikt", "/riskdekomposition", "/kommunanalys", "/kallor". These MUST stay identical.
-- Approved review items: R4 (risk filter leaves the sidebar), R5 (order/sections/labels), R7 (footer wording: use the text the product owner approved; if none was given use "Källa: SCB, Kolada · Data 2010 - 2024"), R11.
+- Approved review items: R4 (risk filter leaves the sidebar), R5 (order/sections/labels), R11. Footer wording is already "Data 2010 - 2024" (§A0); keep it.
 
 REQUIREMENTS
 1. Move the landing content (main.py lines ~163-316 incl. its imports) unchanged into new file app/pages/startsida.py. It reads year from st.session_state["selected_year"] and kri_df from app.data.load_kri_data().
@@ -858,7 +870,7 @@ REQUIREMENTS
 5. Risk filter: delete from sidebar. In riksoversikt.py add (temporarily, T06 styles it) st.pills("Riskklass", ["Hög","Medel","Låg"], selection_mode="multi", key="rv_risk_filter", default=st.session_state.get("selected_risks") or None) at top of page; write selected_risks to session_state. Keep selected_risk alias in session_state for backward compatibility.
 6. Replace all page-local footer HTML with render_footer().
 7. Update tests/test_app_smoke.py PAGES constant to the new st.Page paths and add a test: set year 2015 on Riksöversikt, switch to Startsida, then Kommunanalys: selected_year must still be 2015 (U2 regression test).
-8. Check the sidebar collapse/expand control still works with hidden header CSS in a real browser; if the test-id changed in 1.67, update the selector and comment it as version-sensitive.
+8. Keep the pre-modernization render order (theme + sidebar before heavy imports) and the native collapse/expand controls (§A0); verify both in a real browser.
 
 MUST REMAIN INTACT: every page reachable from the sidebar and by direct URL (/riksoversikt etc.); Startsida content; About menu; data-missing error; risk filter semantics on Riksöversikt (empty = all).
 
@@ -873,11 +885,11 @@ DONE: commit "ux(T04): st.navigation router, single sidebar, shared header/foote
 ### Prompt T05: KPI component and delta semantics
 
 ```
-TASK T05 (P0): Replace HTML KPI cards with an accessible st.metric-based component and fix delta semantics.
+TASK T05 (P0): Replace HTML KPI cards with an accessible st.metric-based component, keeping the delta semantics already fixed (§A0).
 
 CONTEXT
 - theme.render_kpi_card (HTML; tooltip only as title attribute). Used on riksoversikt.py (4 cards, explanations in _KPI_TIP_* constants) and kommunanalys.py (6 cards via _delta_info).
-- BUG U1 (approved R1): kommunanalys._delta_info returns direction "down" when a higher-is-worse value increases, and CSS paints delta-down green, so a worsening KRI shows green ▼.
+- Delta semantics were fixed before this plan (§A0): kommunanalys._delta_info already returns arrow = sign of change and tone = desirability. The new component must reproduce exactly the same arrows and colours.
 - st.metric(label, value, delta, delta_color "normal"|"inverse"|"off", help=, border=True, delta_arrow "auto"|"up"|"down"|"off", delta_description=, chart_data=, chart_type="line").
 - Rank: 1 = most vulnerable, so a HIGHER rank number is BETTER.
 
@@ -957,7 +969,7 @@ REQUIREMENTS
 9. st.page_link to the Riskdekomposition page, label f"Visa riskdrivare för {kommun}".
 10. Replace all raw hex and inline style HTML in this file with components/tokens.
 
-MUST REMAIN INTACT: F20-F29 entirely; CSV bytes identical for a given kommun (add a test comparing to a golden CSV generated from the baseline tag for one kommun, e.g. 0484 Eskilstuna).
+MUST REMAIN INTACT: F20-F29 entirely; CSV bytes identical for a given kommun (add a test comparing to a golden CSV generated from the `ux-baseline` tag, i.e. after §A0, for one kommun, e.g. 0484 Eskilstuna).
 
 TESTING: smoke; CSV golden test; pytest; verify_swedish_ui; manual: switch kommun, check deltas, download CSV (open in Excel sv-SE), download PDF.
 DONE: commit "ux(T07): Kommunanalys redesign, visible exports".
@@ -995,7 +1007,7 @@ DONE: commit "ux(T08): Riskdekomposition redesign, shared kommun selection".
 ```
 TASK T09 (P1): Implement Startsida per §A6.1.
 
-CONTEXT: app/pages/startsida.py (moved in T04). Helpers in app/styles/theme.py (render_landing_*), app/components/landing_visuals.py. Approved R8 ("73 av 290").
+CONTEXT: app/pages/startsida.py (moved in T04). Helpers in app/styles/theme.py (render_landing_*), app/components/landing_visuals.py. "73 av 290" is already in place (§A0).
 
 REQUIREMENTS
 1. Hero: solid COLORS["primary"] background (remove gradient), reduce vertical padding ~30 %. Copy unchanged.
@@ -1063,7 +1075,7 @@ REQUIREMENTS
 2. Remove now-unused helpers (render_kpi_card, render_landing_credibility, unused CSS classes such as .card-tag, .kpi-*, .riskklass-*) ONLY after grep confirms no references in app/, src/, scripts/, tests/.
 3. Grep app/ for raw hex colours; replace with COLORS tokens (allow only inside src/config.py and SVG generated from tokens).
 4. Update docs/ux-ui-design-system.md to the new system (tokens, theme config, components, navigation, state keys, delta rule, formatting module) and README "Pages" table (labels/order).
-5. Write docs/ux-modernization-report.md: completed changes per task, modified files (git diff --stat ux-baseline-f1f1d96..HEAD), preserved functionality table, tests performed with results, remaining issues, deferred items (T13-T19), known limitations (Streamlit-internal selectors still used, Folium map not keyboard-operable, etc.).
+5. Write docs/ux-modernization-report.md: completed changes per task, modified files (git diff --stat ux-baseline..HEAD), preserved functionality table, tests performed with results, remaining issues, deferred items (T13-T19), known limitations (Streamlit-internal selectors still used, Folium map not keyboard-operable, etc.).
 6. Final: pytest, smoke, verify_swedish_ui all green.
 DONE: commit "ux(T12): QA, cleanup, docs and final report". Do not merge; leave for owner review.
 ```
@@ -1124,7 +1136,7 @@ T16 (P2): Above the Riksöversikt ranking tables add a compact selectbox "Öppna
 | F19 | all former expander text present in popovers | ☐ |
 | F20/F30 | kommun selection shared, searchable | ☐ |
 | F21 | summary badge/KRI/rank/uncertainty | ☐ |
-| F22 | 6 KPIs, correct delta colours (R1), sparklines | ☐ |
+| F22 | 6 KPIs, delta arrows/colours unchanged from §A0, sparklines | ☐ |
 | F23 | sensitivity sentence robust/gränsfall | ☐ |
 | F24/F34 | trends incl. Rikssnitt and risk bands | ☐ |
 | F25/F26 | peer + history tables, highlights + legend, Swedish decimals | ☐ |
@@ -1138,8 +1150,8 @@ T16 (P2): Above the Riksöversikt ranking tables add a compact selectbox "Öppna
 
 ## B6. Rollback strategy
 
-1. **Original preserved:** `master` is untouched during the project. Tag `ux-baseline-f1f1d96` marks the baseline. All work happens on `ux/modernization`.
-2. **Traceability:** one task per commit (or small commit series) with prefix `ux(Txx):`. `git log --oneline --grep "ux(T06)"` lists a task's commits, and `git diff ux-baseline-f1f1d96..HEAD -- <file>` shows cumulative change.
+1. **Original preserved:** `master` is untouched during the project. Tag `ux-baseline` marks the baseline. All work happens on `ux/modernization`.
+2. **Traceability:** one task per commit (or small commit series) with prefix `ux(Txx):`. `git log --oneline --grep "ux(T06)"` lists a task's commits, and `git diff ux-baseline..HEAD -- <file>` shows cumulative change.
 3. **Revert a single task:** `git revert <sha>` (in reverse order if a task has several commits). Tasks are ordered so later tasks depend on earlier ones (see B2 "Depends"). Reverting T04 requires reverting T05-T12 first, or reapplying T04 manually. T06-T11 are mutually independent except for shared components.
 4. **Old helpers kept until T12** (`render_kpi_card`, landing credibility, etc.), so reverting a page task never breaks imports.
 5. **Failed implementation recovery:** if a task leaves the app broken and the fix is not obvious within 30 minutes, `git reset --hard` to the previous task's commit on the branch (local only, never on master), record the failure in `docs/ux-modernization-log.md`, and re-plan the task.
@@ -1165,7 +1177,6 @@ T16 (P2): Above the Riksöversikt ranking tables add a compact selectbox "Öppna
 
 ## Decisions needed from you before implementation
 
-1. Approve, reject, or modify each **⚠ REVIEW** item R1-R13 (§A10).
-2. **R7:** preferred sidebar/footer data-vintage wording (e.g. "Data 2010 - 2024 · Byggd 2026-10-21" or no date).
-3. Confirm the 5-day scope = P0 + P1 (T00-T12), with P2 only if time remains.
-4. Confirm work happens on a new branch `ux/modernization` from `master` @ `f1f1d96`.
+1. Approve, reject, or modify each remaining **⚠ REVIEW** item (R2-R6, R9-R13; R1, R7 and R8 were resolved before this plan, §A0).
+2. Confirm the 5-day scope = P0 + P1 (T00-T12), with P2 only if time remains.
+3. Confirm work happens on a new branch `ux/modernization` from `master` once the §A0 fixes are merged (tag `ux-baseline`).

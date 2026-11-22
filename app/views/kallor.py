@@ -7,115 +7,41 @@ API and coverage details. All user-facing text is in Swedish.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 import pandas as pd
 import streamlit as st
 
-from app.styles.theme import apply_streamlit_theme, render_card_header, render_page_header
+from app.data import load_kri_data, load_sensitivity, modal_agreement, year_range
+from app.ui.components import card_header
+from app.ui.shell import render_footer, render_page_header
 from src.config import SENSITIVITY, SWEDISH_LABELS
 
-# ---------------------------------------------------------------------------
-# Page setup
-# ---------------------------------------------------------------------------
-apply_streamlit_theme()
-
-
-@st.cache_data(show_spinner=False)
-def _load_sensitivity() -> pd.DataFrame | None:
-    """Weight-sensitivity band, or None when the optional layer is not built."""
-    p = PROJECT_ROOT / "data" / "processed" / "kri_sensitivity.parquet"
-    if not p.exists():
-        return None
-    try:
-        df = pd.read_parquet(p)
-        df["year"] = df["year"].astype(int)
-        return df
-    except Exception:
-        return None
-
-
-@st.cache_data(show_spinner=False)
-def _modal_agreement(year: int) -> int | None:
-    """How many municipalities keep their published class as the modal class."""
-    results = PROJECT_ROOT / "data" / "processed" / "kri_results.parquet"
-    sens = _load_sensitivity()
-    if sens is None or not results.exists():
-        return None
-    kri = pd.read_parquet(results, columns=["municipality_code", "year", "risk_class"])
-    kri["year"] = kri["year"].astype(int)
-    merged = kri.merge(sens, on=["municipality_code", "year"])
-    sub = merged[merged["year"] == year]
-    return int((sub["modal_class"] == sub["risk_class"]).sum())
-
-
-sens_df = _load_sensitivity()
-
-# Sidebar, mirrors app/main.py
-pages_dir = PROJECT_ROOT / "app" / "pages"
-st.sidebar.markdown(
-    """
-    <div class="sidebar-brand">
-        <div class="brand-mark">KRI Kontrollpanel</div>
-        <div class="brand-title">Kommunal Risk</div>
-        <div class="brand-sub">Finansiell sårbarhet · SE</div>
-    </div>
-    <div class="nav-section">Navigation</div>
-    """,
-    unsafe_allow_html=True,
+METHODOLOGY_URL = (
+    "https://github.com/Maibra23/Kommunal-Finansiell-Riskindikator/blob/master/docs/methodology.md"
 )
-st.sidebar.page_link("main.py", label="Startsida")
-nav_items = [
-    ("riksoversikt.py", "Riksöversikt"),
-    ("riskdekomposition.py", "Riskdekomposition"),
-    ("kommunanalys.py", "Kommunanalys"),
-    ("kallor.py", "Källor"),
-]
-for fname, title in nav_items:
-    if (pages_dir / fname).exists():
-        st.sidebar.page_link(f"pages/{fname}", label=title)
+_SCB = "https://www.statistikdatabasen.scb.se/pxweb/sv/ssd/"
 
-st.sidebar.markdown("<br/>", unsafe_allow_html=True)
-st.sidebar.markdown(
-    """
-    <div class="sidebar-footer">
-        <strong>KÄLLA:</strong> SCB, Arbetsförmedlingen<br/>
-        Senast uppdaterad 2024-12-31
-    </div>
-    """,
-    unsafe_allow_html=True,
+kri_df = load_kri_data()
+sens_df = load_sensitivity()
+first_year, last_year = year_range(kri_df)
+
+render_page_header(
+    eyebrow="Metod",
+    title="Datakällor och metod",
+    subtitle="Samtliga variabler i indexet hämtas från offentliga, öppna datakällor",
+    meta_value=f"{first_year} - {last_year}",
+    meta_label="Analysperiod",
 )
-
-# ---------------------------------------------------------------------------
-# Page header
-# ---------------------------------------------------------------------------
-st.markdown(
-    render_page_header(
-        eyebrow="KRI · Kommunal Finansiell Riskindikator",
-        title="Datakällor & Metod",
-        subtitle="Samtliga variabler i indexet hämtas från offentliga, öppna datakällor",
-        year="2010 - 2024",
-    ),
-    unsafe_allow_html=True,
+st.caption(
+    "Avsnittet gäller hela analysperioden; årsvalet i sidopanelen påverkar inte sidan. "
+    f"Fullständig metodbeskrivning: [docs/methodology.md]({METHODOLOGY_URL})."
 )
-
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Section 1: Data source overview table
 # ---------------------------------------------------------------------------
-st.markdown(
-    render_card_header(
-        title="Variabler och datakällor",
-        subtitle="Indexet kombinerar fem dimensioner av finansiell risk",
-        tag="Avsnitt 2.1",
-    ),
-    unsafe_allow_html=True,
+card_header(
+    "Variabler och datakällor",
+    "Indexet kombinerar fem dimensioner av strukturell ekonomisk risk",
 )
 
 sources_df = pd.DataFrame(
@@ -126,14 +52,16 @@ sources_df = pd.DataFrame(
             "Vikt": "25 %",
             "Källsystem": "SCB PxWeb API",
             "Serie": "BalansKn, poster 081-085, 090, 136",
+            "Källa": _SCB + "START__OE__OE0107__OE0107G/BalansKn/",
             "Täckning": "290 kommuner × 15 år",
         },
         {
-            "Variabel": "Arbetslöshet",
+            "Variabel": "Öppet arbetslösa (andel av invånare 18-65 år)",
             "Kolumnnamn": "unemployment",
             "Vikt": "25 %",
             "Källsystem": "Kolada API (Arbetsförmedlingen)",
             "Serie": "KPI N03937",
+            "Källa": "https://www.kolada.se/verktyg/fri-sokning/?kpis=N03937",
             "Täckning": "290 kommuner × 15 år",
         },
         {
@@ -142,6 +70,7 @@ sources_df = pd.DataFrame(
             "Vikt": "20 %",
             "Källsystem": "SCB PxWeb API",
             "Serie": "BefolkningNy, åldrar 0 - 100+",
+            "Källa": _SCB + "START__BE__BE0101__BE0101A/BefolkningNy/",
             "Täckning": "290 kommuner × 15 år",
         },
         {
@@ -150,6 +79,7 @@ sources_df = pd.DataFrame(
             "Vikt": "15 %",
             "Källsystem": "SCB PxWeb API",
             "Serie": 'BefolkningNy, "tot" ålder',
+            "Källa": _SCB + "START__BE__BE0101__BE0101A/BefolkningNy/",
             "Täckning": "290 kommuner × 15 år",
         },
         {
@@ -158,6 +88,7 @@ sources_df = pd.DataFrame(
             "Vikt": "15 %",
             "Källsystem": "SCB PxWeb API",
             "Serie": "SkatteKraft, OE0101B0",
+            "Källa": _SCB + "START__OE__OE0101/SkatteKraft/",
             "Täckning": "290 kommuner × 15 år",
         },
     ]
@@ -174,18 +105,19 @@ st.dataframe(
         "Källsystem": st.column_config.TextColumn("Källsystem", width="large"),
         "Serie": st.column_config.TextColumn("Serie", width="large"),
         "Täckning": st.column_config.TextColumn("Täckning", width="medium"),
+        "Källa": st.column_config.LinkColumn("Källa", display_text="Öppna", width="small"),
     },
 )
 
 st.markdown(
-    "<p style='font-size:0.82rem;color:#6B7280;margin-top:4px'>"
+    "<p class='kri-note'>"
     "Samtliga fem variabler uppnår <strong>100 % täckning</strong>: inga saknade värden "
-    "för någon av de 290 kommunerna under analysperioden 2010 - 2024."
+    f"för någon av de 290 kommunerna under analysperioden {first_year} - {last_year}."
     "</p>",
     unsafe_allow_html=True,
 )
 
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.space("small")
 
 # ---------------------------------------------------------------------------
 # Section 2: API details (collapsible)
@@ -241,29 +173,26 @@ GET /v3/data/kpi/N03937/year/2010,2011,...,2024""",
             language="bash",
         )
         st.markdown(
-            "**KPI:** `N03937`: Andel öppet arbetslösa och personer i program med aktivitetsstöd, "
-            "16 - 64 år (% av befolkningen)"
+            "**KPI:** `N03937`: Öppet arbetslösa av befolkningen, 18 - 65 år, andel (%). "
+            "Nämnaren är alla invånare i åldern, inte arbetskraften, så nivån är lägre än "
+            "den vanliga arbetslöshetsgraden. Till och med 2022 avsåg nyckeltalet 18 - 64 år."
         )
 
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.space("small")
 
 # ---------------------------------------------------------------------------
 # Section 3: Viktkänslighet
 # ---------------------------------------------------------------------------
-st.markdown(
-    render_card_header(
-        title=SWEDISH_LABELS["weight_sensitivity"],
-        subtitle="Hur mycket beror rangordningen på just de valda vikterna?",
-        tag="Metod",
-    ),
-    unsafe_allow_html=True,
+card_header(
+    SWEDISH_LABELS["weight_sensitivity"],
+    "Hur mycket beror rangordningen på just de valda vikterna?",
 )
 
 _delta_sv = f"{SENSITIVITY['delta']:.2f}".replace(".", ",")
 
 st.markdown(
     f"""
-KRI viktar fem z-poäng med **0,25 skuld · 0,25 arbetslöshet · 0,20 försörjningskvot ·
+KRI viktar fem z-poäng med **0,25 skuld · 0,25 öppen arbetslöshet · 0,20 försörjningskvot ·
 0,15 befolkningstillväxt · 0,15 skattekraft**. Vikterna är motiverade utifrån offentlig
 finansieringsteori. De är alltså *valda*, inte skattade ur data. Det är en rimlig
 invändning mot varje sammansatt index, och den besvaras här med en mätning i stället
@@ -288,7 +217,7 @@ if sens_df is not None:
     _latest = int(sens_df["year"].max())
     _sub = sens_df[sens_df["year"] == _latest]
     _robust = int(_sub["is_robust"].sum())
-    _modal_agree = _modal_agreement(_latest) or len(_sub)
+    _modal_agree = modal_agreement(_latest) or len(_sub)
     st.markdown(
         f"""
 **Resultat {_latest}.** {_robust} av {len(_sub)} kommuner är robusta. Den viktigaste
@@ -369,19 +298,12 @@ beräkning. Den redovisar hur stabila de värdena är, inte vad de ska vara.
 """
     )
 
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.space("small")
 
 # ---------------------------------------------------------------------------
 # Section 3: Licens och öppen data
 # ---------------------------------------------------------------------------
-st.markdown(
-    render_card_header(
-        title="Licens och öppen data",
-        subtitle="All data är offentlig och fritt tillgänglig",
-        tag="Licens",
-    ),
-    unsafe_allow_html=True,
-)
+card_header("Licens och öppen data", "All data är offentlig och fritt tillgänglig")
 
 license_df = pd.DataFrame(
     [
@@ -408,3 +330,5 @@ st.dataframe(
     width="stretch",
     hide_index=True,
 )
+
+render_footer(first_year, last_year)
